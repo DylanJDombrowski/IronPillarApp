@@ -27,6 +27,14 @@ interface WorkoutType {
   color: string;
 }
 
+interface MuscleGroup {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  subCategories: string[];
+}
+
 const workoutTypes: WorkoutType[] = [
   {
     id: "strength",
@@ -51,11 +59,62 @@ const workoutTypes: WorkoutType[] = [
   },
 ];
 
+const muscleGroups: MuscleGroup[] = [
+  {
+    id: "chest",
+    name: "Chest",
+    icon: "fitness",
+    color: "#FF3B30",
+    subCategories: ["Upper Chest", "Mid Chest", "Lower Chest"],
+  },
+  {
+    id: "back",
+    name: "Back",
+    icon: "body",
+    color: "#007AFF",
+    subCategories: ["Upper Back", "Lower Back", "Lats"],
+  },
+  {
+    id: "legs",
+    name: "Legs",
+    icon: "walk",
+    color: "#30D158",
+    subCategories: ["Quads", "Hamstrings", "Glutes", "Calves"],
+  },
+  {
+    id: "cardio",
+    name: "Cardio",
+    icon: "heart",
+    color: "#FF9500",
+    subCategories: ["HIIT", "Steady State", "Circuit Training"],
+  },
+  {
+    id: "arms",
+    name: "Arms",
+    icon: "barbell",
+    color: "#AF52DE",
+    subCategories: ["Biceps", "Triceps", "Forearms"],
+  },
+  {
+    id: "shoulders",
+    name: "Shoulders",
+    icon: "triangle",
+    color: "#FF6B35",
+    subCategories: ["Front Delts", "Side Delts", "Rear Delts"],
+  },
+];
+
 export default function UploadWorkoutScreen({ navigation }: any) {
   const [selectedWorkoutType, setSelectedWorkoutType] = useState<string>("");
   const [workoutName, setWorkoutName] = useState<string>("");
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  // New state for muscle group dropdowns
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [selectedMuscleGroups, setSelectedMuscleGroups] = useState<{
+    [key: string]: string;
+  }>({});
 
   const addExercise = () => {
     setExercises([
@@ -73,6 +132,25 @@ export default function UploadWorkoutScreen({ navigation }: any) {
   const removeExercise = (index: number) => {
     const updatedExercises = exercises.filter((_, i) => i !== index);
     setExercises(updatedExercises);
+  };
+
+  const handleMuscleGroupPress = (muscleGroupId: string) => {
+    if (openDropdown === muscleGroupId) {
+      setOpenDropdown(null);
+    } else {
+      setOpenDropdown(muscleGroupId);
+    }
+  };
+
+  const handleSubCategorySelect = (
+    muscleGroupId: string,
+    subCategory: string
+  ) => {
+    setSelectedMuscleGroups((prev) => ({
+      ...prev,
+      [muscleGroupId]: subCategory,
+    }));
+    setOpenDropdown(null);
   };
 
   const handleSaveWorkout = async () => {
@@ -116,6 +194,7 @@ export default function UploadWorkoutScreen({ navigation }: any) {
           user_id: user.id,
           name: workoutName,
           type: selectedWorkoutType,
+          muscle_groups: selectedMuscleGroups,
           exercises: exercises,
           created_at: new Date().toISOString(),
         })
@@ -156,6 +235,59 @@ export default function UploadWorkoutScreen({ navigation }: any) {
     </TouchableOpacity>
   );
 
+  const renderMuscleGroup = ({ item }: { item: MuscleGroup }) => {
+    const isOpen = openDropdown === item.id;
+    const selectedSubCategory = selectedMuscleGroups[item.id];
+
+    return (
+      <View style={styles.muscleGroupContainer}>
+        <TouchableOpacity
+          style={[
+            styles.muscleGroupButton,
+            { borderColor: item.color },
+            selectedSubCategory && { backgroundColor: item.color + "15" },
+          ]}
+          onPress={() => handleMuscleGroupPress(item.id)}
+        >
+          <View style={styles.muscleGroupContent}>
+            <Ionicons name={item.icon as any} size={20} color={item.color} />
+            <Text style={[styles.muscleGroupText, { color: item.color }]}>
+              {item.name}
+            </Text>
+            <Ionicons
+              name={isOpen ? "chevron-up" : "chevron-down"}
+              size={16}
+              color={item.color}
+            />
+          </View>
+          {selectedSubCategory && (
+            <Text style={styles.selectedSubCategory}>
+              {selectedSubCategory}
+            </Text>
+          )}
+        </TouchableOpacity>
+
+        {isOpen && (
+          <View style={[styles.dropdown, { borderColor: item.color }]}>
+            {item.subCategories.map((subCategory, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.dropdownItem,
+                  index < item.subCategories.length - 1 &&
+                    styles.dropdownItemBorder,
+                ]}
+                onPress={() => handleSubCategorySelect(item.id, subCategory)}
+              >
+                <Text style={styles.dropdownItemText}>{subCategory}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+    );
+  };
+
   const renderExercise = ({
     item,
     index,
@@ -173,13 +305,6 @@ export default function UploadWorkoutScreen({ navigation }: any) {
           <Ionicons name="close-circle" size={20} color="#FF3B30" />
         </TouchableOpacity>
       </View>
-
-      <TextInput
-        style={styles.exerciseNameInput}
-        placeholder="Exercise name"
-        value={item.name}
-        onChangeText={(text) => updateExercise(index, "name", text)}
-      />
 
       <View style={styles.exerciseInputsRow}>
         <View style={styles.inputGroup}>
@@ -242,6 +367,19 @@ export default function UploadWorkoutScreen({ navigation }: any) {
             placeholder="Enter workout name"
             value={workoutName}
             onChangeText={setWorkoutName}
+          />
+        </View>
+
+        {/* NEW MUSCLE GROUPS SECTION */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Target Muscle Groups</Text>
+          <FlatList
+            data={muscleGroups}
+            renderItem={renderMuscleGroup}
+            keyExtractor={(item) => item.id}
+            numColumns={3}
+            columnWrapperStyle={styles.muscleGroupRow}
+            scrollEnabled={false}
           />
         </View>
 
@@ -335,6 +473,69 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e9ecef",
   },
+
+  // NEW MUSCLE GROUP STYLES
+  muscleGroupRow: {
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  muscleGroupContainer: {
+    flex: 0.31,
+    marginBottom: 12,
+  },
+  muscleGroupButton: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 2,
+    minHeight: 80,
+    justifyContent: "center",
+  },
+  muscleGroupContent: {
+    alignItems: "center",
+    gap: 4,
+  },
+  muscleGroupText: {
+    fontSize: 12,
+    fontWeight: "500",
+    textAlign: "center",
+  },
+  selectedSubCategory: {
+    fontSize: 10,
+    color: "#666",
+    textAlign: "center",
+    marginTop: 4,
+    fontStyle: "italic",
+  },
+  dropdown: {
+    position: "absolute",
+    top: 82,
+    left: 0,
+    right: 0,
+    backgroundColor: "white",
+    borderRadius: 8,
+    borderWidth: 1,
+    zIndex: 1000,
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  dropdownItem: {
+    padding: 12,
+  },
+  dropdownItemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#e9ecef",
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    color: "#1a1a1a",
+    textAlign: "center",
+  },
+
+  // EXISTING STYLES
   workoutTypeRow: {
     justifyContent: "space-between",
   },
