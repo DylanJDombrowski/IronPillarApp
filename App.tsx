@@ -161,7 +161,13 @@ function MainTabs() {
                 alignItems: "center",
               }}
             >
-              <CustomUploadButton onPress={(e) => props.onPress?.(e)} />
+              <CustomUploadButton
+                onPress={(e) => {
+                  if (props.onPress) {
+                    props.onPress(e);
+                  }
+                }}
+              />
             </View>
           ),
         }}
