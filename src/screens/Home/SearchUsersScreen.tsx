@@ -1,16 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   FlatList,
+  Image,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from "react-native";
 import { supabase } from "../../services/supabase";
-import { SearchUser, FriendRequest } from "../../types";
+import { SearchUser } from "../../types";
 
 interface SearchUsersScreenProps {
   navigation: any;
@@ -23,23 +25,36 @@ export default function SearchUsersScreen({
   const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    getCurrentUser();
-    ensureUserProfile(); // Ensure current user profile exists
+    initializeScreen();
   }, []);
 
   useEffect(() => {
+    if (!isInitialized || !currentUserId) return;
+
     const delayedSearch = setTimeout(() => {
       if (searchQuery.trim().length > 2) {
-        searchUsers();
+        performSearch();
       } else {
         setSearchResults([]);
       }
-    }, 500); // Debounce search
+    }, 500); // Debounce search by 500ms
 
     return () => clearTimeout(delayedSearch);
-  }, [searchQuery, currentUserId]);
+  }, [searchQuery, currentUserId, isInitialized]);
+
+  const initializeScreen = async () => {
+    try {
+      await getCurrentUser();
+      await ensureCurrentUserProfile();
+      setIsInitialized(true);
+    } catch (error) {
+      console.error("Error initializing search screen:", error);
+      Alert.alert("Error", "Failed to initialize search. Please try again.");
+    }
+  };
 
   const getCurrentUser = async () => {
     const {
@@ -47,54 +62,32 @@ export default function SearchUsersScreen({
     } = await supabase.auth.getUser();
     if (user) {
       setCurrentUserId(user.id);
-      console.log("🆔 Current user set:", user.id, user.email);
+      console.log("✅ Current user initialized:", user.email);
+    } else {
+      console.error("❌ No authenticated user found");
     }
   };
 
-  // SYNC ALL: Function to create profiles for all auth users (admin function)
-  const syncAllUsers = async () => {
+  const ensureCurrentUserProfile = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
     try {
-      console.log("🔄 Syncing all users...");
-
-      // This is a workaround - normally you'd use the SQL trigger
-      // For now, we'll ask Dylan to log into the app and it will create his profile
-
-      Alert.alert(
-        "Sync All Users",
-        "To see all users:\n\n1. Have Dylan log into the app\n2. His profile will be auto-created\n3. Then you can search for him!\n\nOr run the SQL trigger in Supabase.",
-        [{ text: "OK" }]
-      );
-    } catch (error) {
-      console.error("Sync all error:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      Alert.alert("Sync Error", errorMessage);
-    }
-  };
-
-  // SYNC: Function to ensure current user profile exists
-  const ensureUserProfile = async () => {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      console.log("🔄 Ensuring profile exists for:", user.email);
-
       // Check if profile exists
-      const { data: existingProfile, error: checkError } = await supabase
+      const { data: existingProfile } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", user.id)
         .single();
 
       if (existingProfile) {
-        console.log("✅ Profile already exists:", existingProfile);
+        console.log("✅ Current user profile exists");
         return;
       }
 
-      console.log("❌ Profile missing, creating...");
+      console.log("🔄 Creating profile for current user...");
 
       // Create profile if it doesn't exist
       const newProfile = {
@@ -104,149 +97,59 @@ export default function SearchUsersScreen({
           user.user_metadata?.full_name || user.email?.split("@")[0] || "User",
         avatar_url: null,
         friend_count: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
       };
 
-      const { data: createdProfile, error: createError } = await supabase
+      const { error: createError } = await supabase
         .from("profiles")
-        .insert(newProfile)
-        .select()
-        .single();
+        .insert(newProfile);
 
       if (createError) {
         console.error("❌ Error creating profile:", createError);
         throw createError;
       }
 
-      console.log("✅ Profile created:", createdProfile);
-      Alert.alert("Profile Synced", "User profile has been created/updated");
+      console.log("✅ Profile created successfully");
     } catch (error) {
-      console.error("Sync error:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      Alert.alert("Sync Error", errorMessage);
+      console.error("Error ensuring user profile:", error);
+      // Don't throw - app can still function
     }
   };
 
-  // ENHANCED DEBUG: Check everything about profiles
-  const debugDatabase = async () => {
-    try {
-      console.log("🔍 DEBUG: Comprehensive database check...");
-
-      // Check current user
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      console.log("👤 Current auth user:", user?.id, user?.email);
-
-      // Check ALL profiles without any filters
-      const { data: allProfiles, error: profileError } = await supabase
-        .from("profiles")
-        .select("*");
-
-      console.log("📊 ALL profiles in database:", allProfiles);
-      console.log("❌ Profile error:", profileError);
-
-      // Check auth.users table (if accessible)
-      const { data: authUsers, error: authError } =
-        await supabase.auth.admin.listUsers();
-      console.log("👥 Auth users:", authUsers);
-      console.log("❌ Auth error:", authError);
-
-      // Test specific search for Dylan
-      const { data: dylanSearch, error: dylanError } = await supabase
-        .from("profiles")
-        .select("*")
-        .ilike("username", "%dylan%");
-
-      console.log("🎯 Dylan specific search:", dylanSearch);
-      console.log("❌ Dylan search error:", dylanError);
-
-      // Test search for any name containing 'a'
-      const { data: broadSearch, error: broadError } = await supabase
-        .from("profiles")
-        .select("*")
-        .or("username.ilike.%a%,full_name.ilike.%a%");
-
-      console.log("🔍 Broad search (contains 'a'):", broadSearch);
-      console.log("❌ Broad search error:", broadError);
-
-      // Check table schema
-      const { data: tableInfo, error: schemaError } = await supabase
-        .rpc("get_table_columns", { table_name: "profiles" })
-        .single();
-
-      console.log("📋 Table schema:", tableInfo);
-      console.log("❌ Schema error:", schemaError);
-
-      Alert.alert(
-        "Debug Results",
-        `Total profiles: ${
-          allProfiles?.length || 0
-        }\nCheck console for detailed logs`
-      );
-    } catch (error) {
-      console.error("Debug error:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      Alert.alert("Debug Error", errorMessage);
-    }
-  };
-
-  const searchUsers = async () => {
+  const performSearch = async () => {
     if (!currentUserId || searchQuery.trim().length <= 2) return;
 
     setLoading(true);
     try {
-      console.log("🔍 Searching for:", searchQuery.trim());
-      console.log("🆔 Current user ID:", currentUserId);
+      console.log("🔍 Searching for users with query:", searchQuery.trim());
 
-      // Enhanced search - search both with and without @ symbol
-      const cleanQuery = searchQuery.trim().replace("@", "");
-
-      console.log("🧹 Clean query:", cleanQuery);
+      // Clean the search query (remove @ symbol, trim whitespace)
+      const cleanQuery = searchQuery.trim().replace(/^@/, "").toLowerCase();
 
       // Search users by username or full_name (case insensitive)
       const { data: users, error } = await supabase
         .from("profiles")
         .select("*")
-        .neq("id", currentUserId) // Exclude current user
+        .neq("id", currentUserId) // Exclude current user from results
         .or(`username.ilike.%${cleanQuery}%,full_name.ilike.%${cleanQuery}%`)
-        .limit(20);
-
-      console.log("📊 Raw search results:", users);
-      console.log("❌ Search error:", error);
+        .order("created_at", { ascending: false })
+        .limit(50); // Limit to 50 results for performance
 
       if (error) {
-        console.error("Search error details:", error);
+        console.error("❌ Search error:", error);
         throw error;
       }
 
+      console.log(`✅ Found ${users?.length || 0} users`);
+
       if (!users || users.length === 0) {
-        console.log("🚫 No users found, checking if profiles exist...");
-
-        // Debug: Check if there are ANY profiles in the database
-        const { data: allProfiles, error: debugError } = await supabase
-          .from("profiles")
-          .select("id, username, full_name")
-          .limit(5);
-
-        console.log("🔍 Debug - All profiles sample:", allProfiles);
-        console.log("❌ Debug error:", debugError);
-
         setSearchResults([]);
         return;
       }
 
-      console.log("✅ Found users:", users.length);
-
       // Get friend status for each user
       const usersWithStatus = await Promise.all(
         users.map(async (user) => {
-          console.log("👤 Processing user:", user.username, user.full_name);
           const friendStatus = await getFriendStatus(currentUserId, user.id);
-          console.log("🤝 Friend status for", user.username, ":", friendStatus);
           return {
             ...user,
             friend_status: friendStatus,
@@ -254,13 +157,11 @@ export default function SearchUsersScreen({
         })
       );
 
-      console.log("🎯 Final results with status:", usersWithStatus);
       setSearchResults(usersWithStatus);
+      console.log(`🎯 Search completed with ${usersWithStatus.length} results`);
     } catch (error) {
-      console.error("❌ Error searching users:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      Alert.alert("Error", `Failed to search users: ${errorMessage}`);
+      console.error("❌ Error performing search:", error);
+      Alert.alert("Search Error", "Failed to search users. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -271,33 +172,22 @@ export default function SearchUsersScreen({
     targetUserId: string
   ): Promise<SearchUser["friend_status"]> => {
     try {
-      console.log(
-        "🤝 Checking friend status between:",
-        userId,
-        "and",
-        targetUserId
-      );
-
-      // Check if already friends (normalize user IDs - smaller ID goes to user1_id)
+      // Normalize user IDs (smaller ID goes to user1_id for consistent lookups)
       const user1_id = userId < targetUserId ? userId : targetUserId;
       const user2_id = userId < targetUserId ? targetUserId : userId;
 
-      console.log("📝 Normalized IDs:", user1_id, user2_id);
-
-      const { data: friendship, error: friendshipError } = await supabase
+      // Check if already friends
+      const { data: friendship } = await supabase
         .from("friendships")
         .select("*")
         .eq("user1_id", user1_id)
         .eq("user2_id", user2_id)
         .single();
 
-      console.log("🤝 Friendship result:", friendship);
-      console.log("❌ Friendship error:", friendshipError);
-
       if (friendship) return "friends";
 
-      // Check for pending friend requests
-      const { data: sentRequest, error: sentError } = await supabase
+      // Check for pending friend request sent by current user
+      const { data: sentRequest } = await supabase
         .from("friend_requests")
         .select("*")
         .eq("requester_id", userId)
@@ -305,12 +195,10 @@ export default function SearchUsersScreen({
         .eq("status", "pending")
         .single();
 
-      console.log("📤 Sent request:", sentRequest);
-      console.log("❌ Sent error:", sentError);
-
       if (sentRequest) return "pending_sent";
 
-      const { data: receivedRequest, error: receivedError } = await supabase
+      // Check for pending friend request received by current user
+      const { data: receivedRequest } = await supabase
         .from("friend_requests")
         .select("*")
         .eq("requester_id", targetUserId)
@@ -318,14 +206,11 @@ export default function SearchUsersScreen({
         .eq("status", "pending")
         .single();
 
-      console.log("📥 Received request:", receivedRequest);
-      console.log("❌ Received error:", receivedError);
-
       if (receivedRequest) return "pending_received";
 
       return "none";
     } catch (error) {
-      console.error("❌ Error in getFriendStatus:", error);
+      console.error("Error checking friend status:", error);
       return "none";
     }
   };
@@ -342,10 +227,9 @@ export default function SearchUsersScreen({
 
       if (error) {
         if (error.code === "23505") {
-          // Unique constraint violation
           Alert.alert(
-            "Request Already Sent",
-            "You've already sent a friend request to this user"
+            "Already Sent",
+            "You've already sent a friend request to this user."
           );
         } else {
           throw error;
@@ -353,7 +237,7 @@ export default function SearchUsersScreen({
         return;
       }
 
-      // Update the user's status in the search results
+      // Update the user's status in search results
       setSearchResults((prev) =>
         prev.map((user) =>
           user.id === targetUserId
@@ -362,10 +246,10 @@ export default function SearchUsersScreen({
         )
       );
 
-      Alert.alert("Friend Request Sent", "Your friend request has been sent!");
+      Alert.alert("Request Sent", "Friend request sent successfully!");
     } catch (error) {
       console.error("Error sending friend request:", error);
-      Alert.alert("Error", "Failed to send friend request");
+      Alert.alert("Error", "Failed to send friend request. Please try again.");
     }
   };
 
@@ -373,17 +257,19 @@ export default function SearchUsersScreen({
     if (!currentUserId) return;
 
     try {
-      // Update the friend request status to accepted
       const { error } = await supabase
         .from("friend_requests")
-        .update({ status: "accepted", updated_at: new Date().toISOString() })
+        .update({
+          status: "accepted",
+          updated_at: new Date().toISOString(),
+        })
         .eq("requester_id", targetUserId)
         .eq("receiver_id", currentUserId)
         .eq("status", "pending");
 
       if (error) throw error;
 
-      // Update the user's status in the search results
+      // Update the user's status in search results
       setSearchResults((prev) =>
         prev.map((user) =>
           user.id === targetUserId
@@ -392,31 +278,43 @@ export default function SearchUsersScreen({
         )
       );
 
-      Alert.alert("Friend Request Accepted", "You are now friends!");
+      Alert.alert("Request Accepted", "You are now friends!");
     } catch (error) {
       console.error("Error accepting friend request:", error);
-      Alert.alert("Error", "Failed to accept friend request");
+      Alert.alert(
+        "Error",
+        "Failed to accept friend request. Please try again."
+      );
     }
+  };
+
+  const navigateToProfile = (userId: string) => {
+    // TODO: Navigate to user's profile page
+    // navigation.navigate("UserProfile", { userId });
+    console.log("Navigate to profile:", userId);
   };
 
   const getActionButton = (user: SearchUser) => {
     switch (user.friend_status) {
       case "friends":
         return (
-          <View style={[styles.actionButton, styles.friendsButton]}>
-            <Ionicons name="checkmark" size={16} color="#28a745" />
-            <Text style={[styles.actionButtonText, styles.friendsText]}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.friendsButton]}
+            onPress={() => navigateToProfile(user.id)}
+          >
+            <Ionicons name="checkmark" size={16} color="#34C759" />
+            <Text style={[styles.actionButtonText, styles.friendsButtonText]}>
               Friends
             </Text>
-          </View>
+          </TouchableOpacity>
         );
 
       case "pending_sent":
         return (
           <View style={[styles.actionButton, styles.pendingButton]}>
-            <Ionicons name="time" size={16} color="#666" />
-            <Text style={[styles.actionButtonText, styles.pendingText]}>
-              Sent
+            <Ionicons name="time" size={16} color="#FF9500" />
+            <Text style={[styles.actionButtonText, styles.pendingButtonText]}>
+              Pending
             </Text>
           </View>
         );
@@ -428,7 +326,7 @@ export default function SearchUsersScreen({
             onPress={() => acceptFriendRequest(user.id)}
           >
             <Ionicons name="person-add" size={16} color="white" />
-            <Text style={[styles.actionButtonText, styles.acceptText]}>
+            <Text style={[styles.actionButtonText, styles.acceptButtonText]}>
               Accept
             </Text>
           </TouchableOpacity>
@@ -437,11 +335,11 @@ export default function SearchUsersScreen({
       default:
         return (
           <TouchableOpacity
-            style={[styles.actionButton, styles.sendButton]}
+            style={[styles.actionButton, styles.addButton]}
             onPress={() => sendFriendRequest(user.id)}
           >
             <Ionicons name="person-add-outline" size={16} color="#007AFF" />
-            <Text style={[styles.actionButtonText, styles.sendText]}>
+            <Text style={[styles.actionButtonText, styles.addButtonText]}>
               Add Friend
             </Text>
           </TouchableOpacity>
@@ -449,31 +347,77 @@ export default function SearchUsersScreen({
     }
   };
 
-  const renderUserItem = ({ item }: { item: SearchUser }) => (
-    <View style={styles.userCard}>
-      <View style={styles.userInfo}>
-        <View style={styles.avatarPlaceholder}>
-          <Text style={styles.avatarText}>
-            {item.full_name
-              ?.split(" ")
-              .map((n) => n[0])
-              .join("")
-              .toUpperCase() ||
-              item.username?.[0]?.toUpperCase() ||
-              "U"}
+  const renderUserItem = ({ item }: { item: SearchUser }) => {
+    const getInitials = () => {
+      if (item.full_name) {
+        return item.full_name
+          .split(" ")
+          .map((name) => name[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2);
+      }
+      return item.username?.[0]?.toUpperCase() || "U";
+    };
+
+    return (
+      <TouchableOpacity
+        style={styles.userCard}
+        onPress={() => navigateToProfile(item.id)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.userInfo}>
+          <View style={styles.avatarContainer}>
+            {item.avatar_url ? (
+              <Image source={{ uri: item.avatar_url }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarText}>{getInitials()}</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.userDetails}>
+            <Text style={styles.userName} numberOfLines={1}>
+              {item.full_name || "No name set"}
+            </Text>
+            <Text style={styles.userHandle} numberOfLines={1}>
+              @{item.username}
+            </Text>
+            <Text style={styles.friendCount}>
+              {item.friend_count || 0} friends
+            </Text>
+          </View>
+        </View>
+
+        {getActionButton(item)}
+      </TouchableOpacity>
+    );
+  };
+
+  const renderEmptyState = () => {
+    if (searchQuery.trim().length <= 2) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="search" size={64} color="#ccc" />
+          <Text style={styles.emptyTitle}>Search for Users</Text>
+          <Text style={styles.emptySubtitle}>
+            Enter at least 3 characters to search for users by username or name
           </Text>
         </View>
+      );
+    }
 
-        <View style={styles.userDetails}>
-          <Text style={styles.userName}>{item.full_name || "No name set"}</Text>
-          <Text style={styles.userHandle}>@{item.username}</Text>
-          <Text style={styles.friendCount}>{item.friend_count} friends</Text>
-        </View>
+    return (
+      <View style={styles.emptyContainer}>
+        <Ionicons name="people-outline" size={64} color="#ccc" />
+        <Text style={styles.emptyTitle}>No Users Found</Text>
+        <Text style={styles.emptySubtitle}>
+          Try searching with different keywords
+        </Text>
       </View>
-
-      {getActionButton(item)}
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -486,34 +430,29 @@ export default function SearchUsersScreen({
           <Ionicons name="arrow-back" size={24} color="#007AFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Search Users</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.syncButton}
-            onPress={ensureUserProfile}
-          >
-            <Text style={styles.syncText}>Sync</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.debugButton} onPress={debugDatabase}>
-            <Text style={styles.debugText}>Debug</Text>
-          </TouchableOpacity>
-        </View>
+        <View style={styles.placeholder} />
       </View>
 
       {/* Search Input */}
       <View style={styles.searchContainer}>
         <View style={styles.searchInputContainer}>
-          <Ionicons name="search" size={20} color="#666" />
+          <Ionicons name="search" size={20} color="#8E8E93" />
           <TextInput
             style={styles.searchInput}
             placeholder="Search by username or name..."
+            placeholderTextColor="#8E8E93"
             value={searchQuery}
             onChangeText={setSearchQuery}
             autoCapitalize="none"
             autoCorrect={false}
+            returnKeyType="search"
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery("")}>
-              <Ionicons name="close-circle" size={20} color="#666" />
+            <TouchableOpacity
+              onPress={() => setSearchQuery("")}
+              style={styles.clearButton}
+            >
+              <Ionicons name="close-circle" size={20} color="#8E8E93" />
             </TouchableOpacity>
           )}
         </View>
@@ -521,25 +460,12 @@ export default function SearchUsersScreen({
 
       {/* Search Results */}
       {loading ? (
-        <View style={styles.centerContainer}>
-          <Text>Searching...</Text>
-        </View>
-      ) : searchQuery.trim().length <= 2 ? (
-        <View style={styles.centerContainer}>
-          <Ionicons name="search" size={64} color="#ccc" />
-          <Text style={styles.emptyTitle}>Search for Users</Text>
-          <Text style={styles.emptySubtitle}>
-            Enter at least 3 characters to search for users by username or name
-          </Text>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Searching...</Text>
         </View>
       ) : searchResults.length === 0 ? (
-        <View style={styles.centerContainer}>
-          <Ionicons name="person-outline" size={64} color="#ccc" />
-          <Text style={styles.emptyTitle}>No Users Found</Text>
-          <Text style={styles.emptySubtitle}>
-            Try searching with a different username or name
-          </Text>
-        </View>
+        renderEmptyState()
       ) : (
         <FlatList
           data={searchResults}
@@ -547,6 +473,7 @@ export default function SearchUsersScreen({
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
       )}
     </View>
@@ -560,74 +487,66 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    padding: 20,
+    justifyContent: "space-between",
     paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
     backgroundColor: "white",
     borderBottomWidth: 1,
     borderBottomColor: "#e9ecef",
   },
   backButton: {
     padding: 8,
+    marginLeft: -8,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "600",
     color: "#1a1a1a",
   },
   placeholder: {
-    width: 60, // Same width as debug button for centering
-  },
-  headerActions: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  syncButton: {
-    backgroundColor: "#28a745",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  syncText: {
-    color: "white",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  debugButton: {
-    backgroundColor: "#FF3B30",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  debugText: {
-    color: "white",
-    fontSize: 12,
-    fontWeight: "600",
+    width: 40,
   },
   searchContainer: {
-    padding: 20,
     backgroundColor: "white",
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e9ecef",
   },
   searchInputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f8f9fa",
+    backgroundColor: "#f1f3f4",
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    gap: 12,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
+    marginLeft: 12,
     color: "#1a1a1a",
   },
-  centerContainer: {
+  clearButton: {
+    padding: 4,
+  },
+  loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 40,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: "#8E8E93",
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 40,
   },
   emptyTitle: {
     fontSize: 20,
@@ -638,33 +557,40 @@ const styles = StyleSheet.create({
   },
   emptySubtitle: {
     fontSize: 16,
-    color: "#666",
+    color: "#8E8E93",
     textAlign: "center",
+    lineHeight: 22,
   },
   listContainer: {
     padding: 20,
   },
   userCard: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "white",
     borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   userInfo: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    flex: 1,
+  },
+  avatarContainer: {
+    marginRight: 16,
+  },
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
   },
   avatarPlaceholder: {
     width: 50,
@@ -673,11 +599,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#007AFF",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
   },
   avatarText: {
     color: "white",
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "600",
   },
   userDetails: {
@@ -691,12 +616,12 @@ const styles = StyleSheet.create({
   },
   userHandle: {
     fontSize: 14,
-    color: "#666",
+    color: "#8E8E93",
     marginBottom: 2,
   },
   friendCount: {
     fontSize: 12,
-    color: "#999",
+    color: "#8E8E93",
   },
   actionButton: {
     flexDirection: "row",
@@ -704,40 +629,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    gap: 6,
-  },
-  sendButton: {
-    backgroundColor: "#f0f8ff",
     borderWidth: 1,
-    borderColor: "#007AFF",
-  },
-  pendingButton: {
-    backgroundColor: "#f8f9fa",
-    borderWidth: 1,
-    borderColor: "#e9ecef",
-  },
-  acceptButton: {
-    backgroundColor: "#28a745",
-  },
-  friendsButton: {
-    backgroundColor: "#f8fff9",
-    borderWidth: 1,
-    borderColor: "#28a745",
   },
   actionButtonText: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "500",
+    marginLeft: 6,
   },
-  sendText: {
+  addButton: {
+    backgroundColor: "transparent",
+    borderColor: "#007AFF",
+  },
+  addButtonText: {
     color: "#007AFF",
   },
-  pendingText: {
-    color: "#666",
+  pendingButton: {
+    backgroundColor: "#FFF3CD",
+    borderColor: "#FF9500",
   },
-  acceptText: {
+  pendingButtonText: {
+    color: "#FF9500",
+  },
+  acceptButton: {
+    backgroundColor: "#007AFF",
+    borderColor: "#007AFF",
+  },
+  acceptButtonText: {
     color: "white",
   },
-  friendsText: {
-    color: "#28a745",
+  friendsButton: {
+    backgroundColor: "#E8F5E8",
+    borderColor: "#34C759",
+  },
+  friendsButtonText: {
+    color: "#34C759",
+  },
+  separator: {
+    height: 12,
   },
 });

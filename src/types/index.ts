@@ -141,3 +141,13 @@ export type WorkoutStackParamList = {
   WorkoutDetail: { workoutId: string };
   ActiveWorkout: { workout: WorkoutWithExercises };
 };
+export interface Profile {
+  id: string;
+  username: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  bio?: string; // Add this line if not present
+  friend_count: number;
+  created_at: string;
+  updated_at: string;
+}
