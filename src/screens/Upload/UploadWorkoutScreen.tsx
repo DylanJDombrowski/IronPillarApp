@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   Alert,
   FlatList,
@@ -9,8 +9,20 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Animated,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from "react-native";
 import { supabase } from "../../services/supabase";
+
+// Enable LayoutAnimation on Android
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 interface Exercise {
   name: string;
@@ -25,14 +37,7 @@ interface WorkoutType {
   name: string;
   icon: string;
   color: string;
-}
-
-interface MuscleGroup {
-  id: string;
-  name: string;
-  icon: string;
-  color: string;
-  subCategories: string[];
+  description: string;
 }
 
 const workoutTypes: WorkoutType[] = [
@@ -41,66 +46,42 @@ const workoutTypes: WorkoutType[] = [
     name: "Strength Training",
     icon: "barbell",
     color: "#007AFF",
+    description: "Build muscle and power",
   },
-  { id: "cardio", name: "Cardio", icon: "heart", color: "#FF3B30" },
-  { id: "flexibility", name: "Flexibility", icon: "body", color: "#30D158" },
-  { id: "sports", name: "Sports", icon: "football", color: "#FF9500" },
+  {
+    id: "cardio",
+    name: "Cardio",
+    icon: "heart",
+    color: "#FF3B30",
+    description: "Improve cardiovascular health",
+  },
+  {
+    id: "flexibility",
+    name: "Flexibility",
+    icon: "body",
+    color: "#30D158",
+    description: "Increase mobility and range",
+  },
+  {
+    id: "sports",
+    name: "Sports",
+    icon: "football",
+    color: "#FF9500",
+    description: "Sport-specific training",
+  },
   {
     id: "crosstraining",
     name: "Cross Training",
     icon: "fitness",
     color: "#AF52DE",
+    description: "Mixed training methods",
   },
   {
     id: "other",
     name: "Other",
     icon: "ellipsis-horizontal-circle",
     color: "#8E8E93",
-  },
-];
-
-const muscleGroups: MuscleGroup[] = [
-  {
-    id: "chest",
-    name: "Chest",
-    icon: "fitness",
-    color: "#FF3B30",
-    subCategories: ["Upper Chest", "Mid Chest", "Lower Chest"],
-  },
-  {
-    id: "back",
-    name: "Back",
-    icon: "body",
-    color: "#007AFF",
-    subCategories: ["Upper Back", "Lower Back", "Lats"],
-  },
-  {
-    id: "legs",
-    name: "Legs",
-    icon: "walk",
-    color: "#30D158",
-    subCategories: ["Quads", "Hamstrings", "Glutes", "Calves"],
-  },
-  {
-    id: "cardio",
-    name: "Cardio",
-    icon: "heart",
-    color: "#FF9500",
-    subCategories: ["HIIT", "Steady State", "Circuit Training"],
-  },
-  {
-    id: "arms",
-    name: "Arms",
-    icon: "barbell",
-    color: "#AF52DE",
-    subCategories: ["Biceps", "Triceps", "Forearms"],
-  },
-  {
-    id: "shoulders",
-    name: "Shoulders",
-    icon: "triangle",
-    color: "#FF6B35",
-    subCategories: ["Front Delts", "Side Delts", "Rear Delts"],
+    description: "Custom workout type",
   },
 ];
 
@@ -109,18 +90,48 @@ export default function UploadWorkoutScreen({ navigation }: any) {
   const [workoutName, setWorkoutName] = useState<string>("");
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [expandedExercise, setExpandedExercise] = useState<number | null>(null);
 
-  // New state for muscle group dropdowns
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-  const [selectedMuscleGroups, setSelectedMuscleGroups] = useState<{
-    [key: string]: string;
-  }>({});
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+
+  const handleWorkoutTypeSelect = (typeId: string) => {
+    setSelectedWorkoutType(typeId);
+
+    // Trigger smooth animations
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+
+    // If exercises section wasn't visible, animate it in
+    if (exercises.length === 0) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      // Auto-add first exercise for better UX
+      setTimeout(() => addExercise(), 300);
+    }
+  };
 
   const addExercise = () => {
-    setExercises([
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    const newExercises = [
       ...exercises,
-      { name: "", sets: 1, reps: 1, weight: 0, notes: "" },
-    ]);
+      { name: "", sets: 3, reps: 10, weight: 0, notes: "" },
+    ];
+    setExercises(newExercises);
+
+    // Auto-expand the newly added exercise
+    setExpandedExercise(newExercises.length - 1);
   };
 
   const updateExercise = (index: number, field: keyof Exercise, value: any) => {
@@ -130,48 +141,43 @@ export default function UploadWorkoutScreen({ navigation }: any) {
   };
 
   const removeExercise = (index: number) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     const updatedExercises = exercises.filter((_, i) => i !== index);
     setExercises(updatedExercises);
-  };
 
-  const handleMuscleGroupPress = (muscleGroupId: string) => {
-    if (openDropdown === muscleGroupId) {
-      setOpenDropdown(null);
-    } else {
-      setOpenDropdown(muscleGroupId);
+    // Reset expanded state if needed
+    if (expandedExercise === index) {
+      setExpandedExercise(null);
+    } else if (expandedExercise && expandedExercise > index) {
+      setExpandedExercise(expandedExercise - 1);
     }
   };
 
-  const handleSubCategorySelect = (
-    muscleGroupId: string,
-    subCategory: string
-  ) => {
-    setSelectedMuscleGroups((prev) => ({
-      ...prev,
-      [muscleGroupId]: subCategory,
-    }));
-    setOpenDropdown(null);
+  const toggleExerciseExpansion = (index: number) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedExercise(expandedExercise === index ? null : index);
   };
 
   const handleSaveWorkout = async () => {
+    // Validation with better UX
     if (!workoutName.trim()) {
-      Alert.alert("Error", "Please enter a workout name");
+      Alert.alert("Missing Information", "Please enter a workout name");
       return;
     }
 
     if (!selectedWorkoutType) {
-      Alert.alert("Error", "Please select a workout type");
+      Alert.alert("Missing Information", "Please select a workout type");
       return;
     }
 
     if (exercises.length === 0) {
-      Alert.alert("Error", "Please add at least one exercise");
+      Alert.alert("Missing Exercises", "Please add at least one exercise");
       return;
     }
 
     const hasEmptyExercises = exercises.some((ex) => !ex.name.trim());
     if (hasEmptyExercises) {
-      Alert.alert("Error", "Please fill in all exercise names");
+      Alert.alert("Incomplete Exercises", "Please fill in all exercise names");
       return;
     }
 
@@ -194,7 +200,6 @@ export default function UploadWorkoutScreen({ navigation }: any) {
           user_id: user.id,
           name: workoutName,
           type: selectedWorkoutType,
-          muscle_groups: selectedMuscleGroups,
           exercises: exercises,
           created_at: new Date().toISOString(),
         })
@@ -203,7 +208,7 @@ export default function UploadWorkoutScreen({ navigation }: any) {
 
       if (workoutError) throw workoutError;
 
-      Alert.alert("Success", "Workout saved successfully!", [
+      Alert.alert("Success! 🎉", "Your workout has been saved successfully!", [
         {
           text: "OK",
           onPress: () => navigation.goBack(),
@@ -217,74 +222,53 @@ export default function UploadWorkoutScreen({ navigation }: any) {
     }
   };
 
-  const renderWorkoutType = ({ item }: { item: WorkoutType }) => (
-    <TouchableOpacity
-      style={[
-        styles.workoutTypeCard,
-        selectedWorkoutType === item.id && {
-          borderColor: item.color,
-          borderWidth: 2,
-        },
-      ]}
-      onPress={() => setSelectedWorkoutType(item.id)}
-    >
-      <View style={[styles.workoutTypeIcon, { backgroundColor: item.color }]}>
-        <Ionicons name={item.icon as any} size={24} color="white" />
-      </View>
-      <Text style={styles.workoutTypeName}>{item.name}</Text>
-    </TouchableOpacity>
-  );
+  const getSelectedWorkoutType = () => {
+    return workoutTypes.find((type) => type.id === selectedWorkoutType);
+  };
 
-  const renderMuscleGroup = ({ item }: { item: MuscleGroup }) => {
-    const isOpen = openDropdown === item.id;
-    const selectedSubCategory = selectedMuscleGroups[item.id];
+  const renderWorkoutType = ({ item }: { item: WorkoutType }) => {
+    const isSelected = selectedWorkoutType === item.id;
 
     return (
-      <View style={styles.muscleGroupContainer}>
-        <TouchableOpacity
+      <TouchableOpacity
+        style={[
+          styles.workoutTypeCard,
+          isSelected && {
+            borderColor: item.color,
+            borderWidth: 2,
+            backgroundColor: `${item.color}08`,
+          },
+        ]}
+        onPress={() => handleWorkoutTypeSelect(item.id)}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.workoutTypeIcon, { backgroundColor: item.color }]}>
+          <Ionicons name={item.icon as any} size={24} color="white" />
+        </View>
+        <Text
           style={[
-            styles.muscleGroupButton,
-            { borderColor: item.color },
-            selectedSubCategory && { backgroundColor: item.color + "15" },
+            styles.workoutTypeName,
+            isSelected && { color: item.color, fontWeight: "600" },
           ]}
-          onPress={() => handleMuscleGroupPress(item.id)}
         >
-          <View style={styles.muscleGroupContent}>
-            <Ionicons name={item.icon as any} size={20} color={item.color} />
-            <Text style={[styles.muscleGroupText, { color: item.color }]}>
-              {item.name}
-            </Text>
-            <Ionicons
-              name={isOpen ? "chevron-up" : "chevron-down"}
-              size={16}
-              color={item.color}
-            />
-          </View>
-          {selectedSubCategory && (
-            <Text style={styles.selectedSubCategory}>
-              {selectedSubCategory}
-            </Text>
-          )}
-        </TouchableOpacity>
-
-        {isOpen && (
-          <View style={[styles.dropdown, { borderColor: item.color }]}>
-            {item.subCategories.map((subCategory, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.dropdownItem,
-                  index < item.subCategories.length - 1 &&
-                    styles.dropdownItemBorder,
-                ]}
-                onPress={() => handleSubCategorySelect(item.id, subCategory)}
-              >
-                <Text style={styles.dropdownItemText}>{subCategory}</Text>
-              </TouchableOpacity>
-            ))}
+          {item.name}
+        </Text>
+        <Text
+          style={[
+            styles.workoutTypeDescription,
+            isSelected && { color: item.color },
+          ]}
+        >
+          {item.description}
+        </Text>
+        {isSelected && (
+          <View
+            style={[styles.selectedIndicator, { backgroundColor: item.color }]}
+          >
+            <Ionicons name="checkmark" size={16} color="white" />
           </View>
         )}
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -294,97 +278,153 @@ export default function UploadWorkoutScreen({ navigation }: any) {
   }: {
     item: Exercise;
     index: number;
-  }) => (
-    <View style={styles.exerciseCard}>
-      <View style={styles.exerciseHeader}>
-        <Text style={styles.exerciseNumber}>{index + 1}</Text>
+  }) => {
+    const isExpanded = expandedExercise === index;
+    const selectedType = getSelectedWorkoutType();
+
+    return (
+      <View
+        style={[styles.exerciseCard, isExpanded && styles.exerciseCardExpanded]}
+      >
         <TouchableOpacity
-          onPress={() => removeExercise(index)}
-          style={styles.removeButton}
+          style={styles.exerciseHeader}
+          onPress={() => toggleExerciseExpansion(index)}
+          activeOpacity={0.7}
         >
-          <Ionicons name="close-circle" size={20} color="#FF3B30" />
+          <View style={styles.exerciseHeaderLeft}>
+            <View
+              style={[
+                styles.exerciseNumber,
+                { backgroundColor: selectedType?.color || "#007AFF" },
+              ]}
+            >
+              <Text style={styles.exerciseNumberText}>{index + 1}</Text>
+            </View>
+            <View style={styles.exerciseHeaderInfo}>
+              <Text style={styles.exerciseHeaderTitle}>
+                {item.name || `Exercise ${index + 1}`}
+              </Text>
+              <Text style={styles.exercisePreview}>
+                {item.sets} sets × {item.reps} reps{" "}
+                {item.weight > 0 && `@ ${item.weight}lbs`}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.exerciseHeaderRight}>
+            <TouchableOpacity
+              onPress={() => removeExercise(index)}
+              style={styles.removeButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="close-circle" size={20} color="#FF3B30" />
+            </TouchableOpacity>
+            <Ionicons
+              name={isExpanded ? "chevron-up" : "chevron-down"}
+              size={20}
+              color="#666"
+            />
+          </View>
         </TouchableOpacity>
+
+        {isExpanded && (
+          <View style={styles.exerciseDetails}>
+            <TextInput
+              style={styles.exerciseNameInput}
+              placeholder="Exercise name (e.g., Bench Press, Squats)"
+              value={item.name}
+              onChangeText={(text) => updateExercise(index, "name", text)}
+              autoFocus={!item.name}
+            />
+
+            <View style={styles.exerciseInputsRow}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Sets</Text>
+                <TextInput
+                  style={styles.numberInput}
+                  value={item.sets.toString()}
+                  onChangeText={(text) =>
+                    updateExercise(
+                      index,
+                      "sets",
+                      Math.max(1, parseInt(text) || 1)
+                    )
+                  }
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Reps</Text>
+                <TextInput
+                  style={styles.numberInput}
+                  value={item.reps.toString()}
+                  onChangeText={(text) =>
+                    updateExercise(
+                      index,
+                      "reps",
+                      Math.max(1, parseInt(text) || 1)
+                    )
+                  }
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Weight (lbs)</Text>
+                <TextInput
+                  style={styles.numberInput}
+                  value={item.weight.toString()}
+                  onChangeText={(text) =>
+                    updateExercise(
+                      index,
+                      "weight",
+                      Math.max(0, parseFloat(text) || 0)
+                    )
+                  }
+                  keyboardType="numeric"
+                />
+              </View>
+            </View>
+
+            <TextInput
+              style={styles.notesInput}
+              placeholder="Notes (optional) - e.g., 'Focus on form', 'Increase weight next time'"
+              value={item.notes}
+              onChangeText={(text) => updateExercise(index, "notes", text)}
+              multiline
+              maxLength={200}
+            />
+          </View>
+        )}
       </View>
+    );
+  };
 
-      <View style={styles.exerciseInputsRow}>
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Sets</Text>
-          <TextInput
-            style={styles.numberInput}
-            value={item.sets.toString()}
-            onChangeText={(text) =>
-              updateExercise(index, "sets", parseInt(text) || 1)
-            }
-            keyboardType="numeric"
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Reps</Text>
-          <TextInput
-            style={styles.numberInput}
-            value={item.reps.toString()}
-            onChangeText={(text) =>
-              updateExercise(index, "reps", parseInt(text) || 1)
-            }
-            keyboardType="numeric"
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Weight (lbs)</Text>
-          <TextInput
-            style={styles.numberInput}
-            value={item.weight.toString()}
-            onChangeText={(text) =>
-              updateExercise(index, "weight", parseFloat(text) || 0)
-            }
-            keyboardType="numeric"
-          />
-        </View>
-      </View>
-
-      <TextInput
-        style={styles.notesInput}
-        placeholder="Notes (optional)"
-        value={item.notes}
-        onChangeText={(text) => updateExercise(index, "notes", text)}
-        multiline
-      />
-    </View>
-  );
+  const selectedType = getSelectedWorkoutType();
 
   return (
     <View style={styles.container}>
       <ScrollView
         style={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 120 }}
       >
+        {/* Workout Name Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Workout Name</Text>
           <TextInput
             style={styles.workoutNameInput}
-            placeholder="Enter workout name"
+            placeholder="Enter workout name (e.g., 'Push Day', 'Morning Run')"
             value={workoutName}
             onChangeText={setWorkoutName}
+            maxLength={50}
           />
         </View>
 
-        {/* NEW MUSCLE GROUPS SECTION */}
+        {/* Workout Type Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Target Muscle Groups</Text>
-          <FlatList
-            data={muscleGroups}
-            renderItem={renderMuscleGroup}
-            keyExtractor={(item) => item.id}
-            numColumns={3}
-            columnWrapperStyle={styles.muscleGroupRow}
-            scrollEnabled={false}
-          />
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Workout Type</Text>
+          <Text style={styles.sectionTitle}>Choose Workout Type</Text>
           <FlatList
             data={workoutTypes}
             renderItem={renderWorkoutType}
@@ -395,53 +435,99 @@ export default function UploadWorkoutScreen({ navigation }: any) {
           />
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.exercisesHeader}>
-            <Text style={styles.sectionTitle}>Exercises</Text>
-            <TouchableOpacity
-              style={styles.addExerciseButton}
-              onPress={addExercise}
-            >
-              <Ionicons name="add-circle" size={24} color="#007AFF" />
-              <Text style={styles.addExerciseText}>Add Exercise</Text>
-            </TouchableOpacity>
-          </View>
-
-          {exercises.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="fitness-outline" size={48} color="#ccc" />
-              <Text style={styles.emptyStateText}>No exercises added yet</Text>
-              <Text style={styles.emptyStateSubtext}>
-                Tap "Add Exercise" to get started
-              </Text>
-            </View>
-          ) : (
-            <FlatList
-              data={exercises}
-              renderItem={renderExercise}
-              keyExtractor={(_, index) => index.toString()}
-              scrollEnabled={false}
+        {/* Selected Type Confirmation */}
+        {selectedWorkoutType && (
+          <View style={styles.selectedTypeIndicator}>
+            <Ionicons
+              name="checkmark-circle"
+              size={20}
+              color={selectedType?.color}
             />
-          )}
-        </View>
+            <Text
+              style={[styles.selectedTypeText, { color: selectedType?.color }]}
+            >
+              {selectedType?.name} selected
+            </Text>
+          </View>
+        )}
+
+        {/* Exercises Section - Shows automatically after workout type selection */}
+        {selectedWorkoutType && (
+          <Animated.View
+            style={[
+              styles.section,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+              },
+            ]}
+          >
+            <View style={styles.exercisesHeader}>
+              <Text style={styles.sectionTitle}>Exercises</Text>
+              <TouchableOpacity
+                style={[
+                  styles.addExerciseButton,
+                  { backgroundColor: selectedType?.color },
+                ]}
+                onPress={addExercise}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add" size={20} color="white" />
+                <Text style={styles.addExerciseText}>Add Exercise</Text>
+              </TouchableOpacity>
+            </View>
+
+            {exercises.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="fitness-outline" size={48} color="#ccc" />
+                <Text style={styles.emptyStateText}>
+                  Ready to add exercises!
+                </Text>
+                <Text style={styles.emptyStateSubtext}>
+                  Tap "Add Exercise" to start building your{" "}
+                  {selectedType?.name.toLowerCase()} workout
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={exercises}
+                renderItem={renderExercise}
+                keyExtractor={(_, index) => index.toString()}
+                scrollEnabled={false}
+                ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+              />
+            )}
+          </Animated.View>
+        )}
       </ScrollView>
 
-      <View style={styles.bottomContainer}>
-        <TouchableOpacity
-          style={[styles.saveButton, isLoading && styles.saveButtonDisabled]}
-          onPress={handleSaveWorkout}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <Text style={styles.saveButtonText}>Saving...</Text>
-          ) : (
-            <>
-              <Ionicons name="checkmark-circle" size={20} color="white" />
-              <Text style={styles.saveButtonText}>Save Workout</Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
+      {/* Fixed Bottom Save Button */}
+      {selectedWorkoutType && exercises.length > 0 && (
+        <View style={styles.bottomContainer}>
+          <TouchableOpacity
+            style={[
+              styles.saveButton,
+              { backgroundColor: selectedType?.color },
+              isLoading && styles.saveButtonDisabled,
+            ]}
+            onPress={handleSaveWorkout}
+            disabled={isLoading}
+            activeOpacity={0.8}
+          >
+            {isLoading ? (
+              <Text style={styles.saveButtonText}>Saving...</Text>
+            ) : (
+              <>
+                <Ionicons name="checkmark-circle" size={20} color="white" />
+                <Text style={styles.saveButtonText}>
+                  Save Workout ({exercises.length} exercise
+                  {exercises.length !== 1 ? "s" : ""})
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -453,204 +539,247 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flex: 1,
-    paddingBottom: 100,
   },
   section: {
     marginBottom: 24,
     paddingHorizontal: 20,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 20,
+    fontWeight: "700",
     color: "#1a1a1a",
-    marginBottom: 12,
+    marginBottom: 16,
   },
   workoutNameInput: {
     backgroundColor: "white",
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 18,
     fontSize: 16,
     borderWidth: 1,
     borderColor: "#e9ecef",
-  },
-
-  // NEW MUSCLE GROUP STYLES
-  muscleGroupRow: {
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  muscleGroupContainer: {
-    flex: 0.31,
-    marginBottom: 12,
-  },
-  muscleGroupButton: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 2,
-    minHeight: 80,
-    justifyContent: "center",
-  },
-  muscleGroupContent: {
-    alignItems: "center",
-    gap: 4,
-  },
-  muscleGroupText: {
-    fontSize: 12,
-    fontWeight: "500",
-    textAlign: "center",
-  },
-  selectedSubCategory: {
-    fontSize: 10,
-    color: "#666",
-    textAlign: "center",
-    marginTop: 4,
-    fontStyle: "italic",
-  },
-  dropdown: {
-    position: "absolute",
-    top: 82,
-    left: 0,
-    right: 0,
-    backgroundColor: "white",
-    borderRadius: 8,
-    borderWidth: 1,
-    zIndex: 1000,
-    elevation: 5,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  dropdownItem: {
-    padding: 12,
-  },
-  dropdownItemBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#e9ecef",
-  },
-  dropdownItemText: {
-    fontSize: 14,
-    color: "#1a1a1a",
-    textAlign: "center",
-  },
-
-  // EXISTING STYLES
   workoutTypeRow: {
     justifyContent: "space-between",
+    marginBottom: 12,
   },
   workoutTypeCard: {
     backgroundColor: "white",
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 20,
     alignItems: "center",
     flex: 0.48,
-    marginBottom: 12,
     borderWidth: 1,
     borderColor: "#e9ecef",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    position: "relative",
   },
   workoutTypeIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 12,
   },
   workoutTypeName: {
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: "600",
     textAlign: "center",
     color: "#1a1a1a",
+    marginBottom: 4,
+  },
+  workoutTypeDescription: {
+    fontSize: 12,
+    color: "#666",
+    textAlign: "center",
+    lineHeight: 16,
+  },
+  selectedIndicator: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  selectedTypeIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginHorizontal: 20,
+    marginBottom: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: "white",
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  selectedTypeText: {
+    marginLeft: 8,
+    fontSize: 16,
+    fontWeight: "600",
   },
   exercisesHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
   },
   addExerciseButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    gap: 6,
   },
   addExerciseText: {
-    color: "#007AFF",
-    fontSize: 16,
-    fontWeight: "500",
+    color: "white",
+    fontSize: 14,
+    fontWeight: "600",
   },
   exerciseCard: {
     backgroundColor: "white",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: "#e9ecef",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    overflow: "hidden",
+  },
+  exerciseCardExpanded: {
+    borderColor: "#007AFF",
   },
   exerciseHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    padding: 16,
+  },
+  exerciseHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
   },
   exerciseNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  exerciseNumberText: {
+    color: "white",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  exerciseHeaderInfo: {
+    flex: 1,
+  },
+  exerciseHeaderTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#007AFF",
+    color: "#1a1a1a",
+    marginBottom: 2,
+  },
+  exercisePreview: {
+    fontSize: 14,
+    color: "#666",
+  },
+  exerciseHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   removeButton: {
     padding: 4,
   },
+  exerciseDetails: {
+    padding: 16,
+    paddingTop: 0,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+  },
   exerciseNameInput: {
     backgroundColor: "#f8f9fa",
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 12,
+    padding: 16,
     fontSize: 16,
-    marginBottom: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#e9ecef",
   },
   exerciseInputsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 12,
+    marginBottom: 16,
+    gap: 12,
   },
   inputGroup: {
     flex: 1,
-    marginHorizontal: 4,
   },
   inputLabel: {
-    fontSize: 12,
-    fontWeight: "500",
+    fontSize: 13,
+    fontWeight: "600",
     color: "#666",
-    marginBottom: 4,
+    marginBottom: 6,
   },
   numberInput: {
     backgroundColor: "#f8f9fa",
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 10,
+    padding: 14,
     fontSize: 16,
     textAlign: "center",
+    borderWidth: 1,
+    borderColor: "#e9ecef",
+    fontWeight: "600",
   },
   notesInput: {
     backgroundColor: "#f8f9fa",
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 12,
+    padding: 16,
     fontSize: 14,
-    minHeight: 60,
+    minHeight: 80,
+    borderWidth: 1,
+    borderColor: "#e9ecef",
+    textAlignVertical: "top",
   },
   emptyState: {
     alignItems: "center",
     paddingVertical: 40,
+    paddingHorizontal: 20,
   },
   emptyStateText: {
-    fontSize: 16,
-    fontWeight: "500",
+    fontSize: 18,
+    fontWeight: "600",
     color: "#666",
     marginTop: 12,
   },
   emptyStateSubtext: {
     fontSize: 14,
     color: "#999",
-    marginTop: 4,
+    marginTop: 6,
+    textAlign: "center",
+    lineHeight: 20,
   },
   bottomContainer: {
     position: "absolute",
@@ -659,24 +788,34 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: "white",
     padding: 20,
+    paddingBottom: 30,
     borderTopWidth: 1,
     borderTopColor: "#e9ecef",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
   },
   saveButton: {
-    backgroundColor: "#007AFF",
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 16,
-    borderRadius: 12,
+    paddingVertical: 18,
+    borderRadius: 16,
     gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   saveButtonDisabled: {
     opacity: 0.6,
   },
   saveButtonText: {
     color: "white",
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "700",
   },
 });
