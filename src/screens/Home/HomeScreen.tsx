@@ -1,0 +1,399 @@
+import { Ionicons } from "@expo/vector-icons";
+import React, { useEffect, useState } from "react";
+import {
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { supabase } from "../../services/supabase";
+
+interface FriendWorkout {
+  id: string;
+  user_name: string;
+  user_username: string;
+  workout_name: string;
+  completed_at: string;
+  exercises_count: number;
+  duration_minutes: number;
+  likes_count: number;
+  user_liked: boolean;
+}
+
+interface HomeScreenProps {
+  navigation: any;
+}
+
+export default function HomeScreen({ navigation }: HomeScreenProps) {
+  const [friendWorkouts, setFriendWorkouts] = useState<FriendWorkout[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    loadFriendWorkouts();
+  }, []);
+
+  const loadFriendWorkouts = async () => {
+    try {
+      // TODO: This will be implemented when we add the friends system
+      // For now, we'll show some placeholder data
+      const mockData: FriendWorkout[] = [
+        {
+          id: "1",
+          user_name: "John Doe",
+          user_username: "johndoe",
+          workout_name: "Upper Body Strength",
+          completed_at: "2025-06-18T10:30:00Z",
+          exercises_count: 5,
+          duration_minutes: 45,
+          likes_count: 3,
+          user_liked: false,
+        },
+        {
+          id: "2",
+          user_name: "Sarah Wilson",
+          user_username: "sarahw",
+          workout_name: "Morning Cardio",
+          completed_at: "2025-06-18T07:15:00Z",
+          exercises_count: 3,
+          duration_minutes: 30,
+          likes_count: 7,
+          user_liked: true,
+        },
+      ];
+
+      setFriendWorkouts(mockData);
+    } catch (error) {
+      console.error("Error loading friend workouts:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadFriendWorkouts();
+  };
+
+  const handleLike = async (workoutId: string) => {
+    // TODO: Implement like functionality
+    setFriendWorkouts((prev) =>
+      prev.map((workout) =>
+        workout.id === workoutId
+          ? {
+              ...workout,
+              user_liked: !workout.user_liked,
+              likes_count: workout.user_liked
+                ? workout.likes_count - 1
+                : workout.likes_count + 1,
+            }
+          : workout
+      )
+    );
+  };
+
+  const formatTimeAgo = (dateString: string) => {
+    const now = new Date();
+    const workoutTime = new Date(dateString);
+    const diffInHours = Math.floor(
+      (now.getTime() - workoutTime.getTime()) / (1000 * 60 * 60)
+    );
+
+    if (diffInHours < 1) {
+      return "Just now";
+    } else if (diffInHours < 24) {
+      return `${diffInHours}h ago`;
+    } else {
+      const diffInDays = Math.floor(diffInHours / 24);
+      return `${diffInDays}d ago`;
+    }
+  };
+
+  const renderWorkoutCard = ({ item }: { item: FriendWorkout }) => (
+    <View style={styles.workoutCard}>
+      {/* User Info Header */}
+      <View style={styles.userHeader}>
+        <View style={styles.userInfo}>
+          <View style={styles.avatarPlaceholder}>
+            <Text style={styles.avatarText}>
+              {item.user_name
+                .split(" ")
+                .map((n) => n[0])
+                .join("")
+                .toUpperCase()}
+            </Text>
+          </View>
+          <View style={styles.userDetails}>
+            <Text style={styles.userName}>{item.user_name}</Text>
+            <Text style={styles.userHandle}>@{item.user_username}</Text>
+          </View>
+        </View>
+        <Text style={styles.timeAgo}>{formatTimeAgo(item.completed_at)}</Text>
+      </View>
+
+      {/* Workout Info */}
+      <View style={styles.workoutContent}>
+        <Text style={styles.workoutTitle}>Completed "{item.workout_name}"</Text>
+
+        <View style={styles.workoutStats}>
+          <View style={styles.statItem}>
+            <Ionicons name="barbell-outline" size={16} color="#007AFF" />
+            <Text style={styles.statText}>
+              {item.exercises_count} exercises
+            </Text>
+          </View>
+
+          <View style={styles.statItem}>
+            <Ionicons name="time-outline" size={16} color="#007AFF" />
+            <Text style={styles.statText}>{item.duration_minutes} min</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Actions */}
+      <View style={styles.actions}>
+        <TouchableOpacity
+          style={[styles.actionButton, item.user_liked && styles.likedButton]}
+          onPress={() => handleLike(item.id)}
+        >
+          <Ionicons
+            name={item.user_liked ? "heart" : "heart-outline"}
+            size={20}
+            color={item.user_liked ? "#FF3B30" : "#666"}
+          />
+          <Text
+            style={[styles.actionText, item.user_liked && styles.likedText]}
+          >
+            {item.likes_count}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.actionButton}>
+          <Ionicons name="chatbubble-outline" size={20} color="#666" />
+          <Text style={styles.actionText}>Comment</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.actionButton}>
+          <Ionicons name="share-outline" size={20} color="#666" />
+          <Text style={styles.actionText}>Share</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyState}>
+      <Ionicons name="people-outline" size={64} color="#ccc" />
+      <Text style={styles.emptyTitle}>No friend workouts yet</Text>
+      <Text style={styles.emptySubtitle}>
+        Add friends to see their workout activity here!
+      </Text>
+      <TouchableOpacity style={styles.findFriendsButton}>
+        <Text style={styles.findFriendsText}>Find Friends</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text>Loading feed...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      {/* Header with Search */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Home</Text>
+        <TouchableOpacity style={styles.searchButton}>
+          <Ionicons name="search" size={24} color="#007AFF" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Friend Workouts Feed */}
+      {friendWorkouts.length === 0 ? (
+        renderEmptyState()
+      ) : (
+        <FlatList
+          data={friendWorkouts}
+          renderItem={renderWorkoutCard}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          showsVerticalScrollIndicator={false}
+        />
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#f8f9fa",
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    paddingTop: 60,
+    backgroundColor: "white",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e9ecef",
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#1a1a1a",
+  },
+  searchButton: {
+    padding: 8,
+  },
+  listContainer: {
+    padding: 20,
+  },
+  workoutCard: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  userHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  userInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  avatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#007AFF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  avatarText: {
+    color: "white",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  userDetails: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1a1a1a",
+  },
+  userHandle: {
+    fontSize: 14,
+    color: "#666",
+  },
+  timeAgo: {
+    fontSize: 14,
+    color: "#666",
+  },
+  workoutContent: {
+    marginBottom: 16,
+  },
+  workoutTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1a1a1a",
+    marginBottom: 12,
+  },
+  workoutStats: {
+    flexDirection: "row",
+    gap: 20,
+  },
+  statItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  statText: {
+    fontSize: 14,
+    color: "#666",
+  },
+  actions: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+  },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  likedButton: {
+    // No additional styling needed, color handled by icon and text
+  },
+  actionText: {
+    fontSize: 14,
+    color: "#666",
+    fontWeight: "500",
+  },
+  likedText: {
+    color: "#FF3B30",
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 40,
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: "600",
+    color: "#1a1a1a",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 32,
+  },
+  findFriendsButton: {
+    backgroundColor: "#007AFF",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  findFriendsText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+});

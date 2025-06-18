@@ -13,25 +13,26 @@ import { supabase } from "./src/services/supabase";
 // Screens
 import LoginScreen from "./src/screens/Auth/LoginScreen";
 import SignupScreen from "./src/screens/Auth/SignupScreen";
+import HomeScreen from "./src/screens/Home/HomeScreen"; // NEW: Home screen for friends' workouts
 import WorkoutHistoryScreen from "./src/screens/History/WorkoutHistoryScreen";
 import ExerciseLibraryScreen from "./src/screens/Library/ExerciseLibraryScreen";
+import MyWorkoutsScreen from "./src/screens/Workouts/WorkoutsScreen"; // NEW: Moved workout management here
 import ProfileScreen from "./src/screens/Profile/ProfileScreen";
 import UploadWorkoutScreen from "./src/screens/Upload/UploadWorkoutScreen";
 import ActiveWorkoutScreen from "./src/screens/Workouts/ActiveWorkoutScreen";
 import WorkoutDetailScreen from "./src/screens/Workouts/WorkoutDetailScreen";
-import WorkoutsScreen from "./src/screens/Workouts/WorkoutsScreen";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
-// Stack navigator for workout-related screens
+// Stack navigator for workout-related screens (now accessed through Library or other areas)
 function WorkoutStack() {
   return (
     <Stack.Navigator>
       <Stack.Screen
-        name="WorkoutsList"
-        component={WorkoutsScreen}
-        options={{ title: "Workouts" }}
+        name="MyWorkoutsList"
+        component={MyWorkoutsScreen}
+        options={{ title: "My Workouts" }}
       />
       <Stack.Screen
         name="WorkoutDetail"
@@ -45,6 +46,24 @@ function WorkoutStack() {
           title: "Workout in Progress",
           headerLeft: () => null, // Prevent going back during workout
         }}
+      />
+    </Stack.Navigator>
+  );
+}
+
+// Stack navigator for the Library tab (now includes My Workouts access)
+function LibraryStack() {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen
+        name="ExerciseLibrary"
+        component={ExerciseLibraryScreen}
+        options={{ title: "Exercise Library" }}
+      />
+      <Stack.Screen
+        name="MyWorkouts"
+        component={WorkoutStack}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );
@@ -118,8 +137,9 @@ function MainTabs() {
         tabBarIcon: ({ focused, color, size }) => {
           let iconName: keyof typeof Ionicons.glyphMap;
 
-          if (route.name === "Workouts") {
-            iconName = focused ? "fitness" : "fitness-outline";
+          // UPDATED: Home tab instead of Workouts
+          if (route.name === "Home") {
+            iconName = focused ? "home" : "home-outline";
           } else if (route.name === "Library") {
             iconName = focused ? "library" : "library-outline";
           } else if (route.name === "Upload") {
@@ -146,8 +166,10 @@ function MainTabs() {
         },
       })}
     >
-      <Tab.Screen name="Workouts" component={WorkoutStack} />
-      <Tab.Screen name="Library" component={ExerciseLibraryScreen} />
+      {/* UPDATED: Home tab shows friends' workouts */}
+      <Tab.Screen name="Home" component={HomeScreen} />
+      {/* UPDATED: Library now includes access to My Workouts */}
+      <Tab.Screen name="Library" component={LibraryStack} />
       <Tab.Screen
         name="Upload"
         component={UploadStack}

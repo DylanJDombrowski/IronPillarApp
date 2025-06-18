@@ -102,23 +102,9 @@ export default function UploadWorkoutScreen({ navigation }: any) {
     // Trigger smooth animations
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 
-    // If exercises section wasn't visible, animate it in
+    // Auto-add first exercise for better UX
     if (exercises.length === 0) {
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-      ]).start();
-
-      // Auto-add first exercise for better UX
-      setTimeout(() => addExercise(), 300);
+      setTimeout(() => addExercise(), 200);
     }
   };
 
@@ -172,12 +158,6 @@ export default function UploadWorkoutScreen({ navigation }: any) {
 
     if (exercises.length === 0) {
       Alert.alert("Missing Exercises", "Please add at least one exercise");
-      return;
-    }
-
-    const hasEmptyExercises = exercises.some((ex) => !ex.name.trim());
-    if (hasEmptyExercises) {
-      Alert.alert("Incomplete Exercises", "Please fill in all exercise names");
       return;
     }
 
@@ -302,7 +282,7 @@ export default function UploadWorkoutScreen({ navigation }: any) {
             </View>
             <View style={styles.exerciseHeaderInfo}>
               <Text style={styles.exerciseHeaderTitle}>
-                {item.name || `Exercise ${index + 1}`}
+                Exercise {index + 1}
               </Text>
               <Text style={styles.exercisePreview}>
                 {item.sets} sets × {item.reps} reps{" "}
@@ -329,14 +309,6 @@ export default function UploadWorkoutScreen({ navigation }: any) {
 
         {isExpanded && (
           <View style={styles.exerciseDetails}>
-            <TextInput
-              style={styles.exerciseNameInput}
-              placeholder="Exercise name (e.g., Bench Press, Squats)"
-              value={item.name}
-              onChangeText={(text) => updateExercise(index, "name", text)}
-              autoFocus={!item.name}
-            />
-
             <View style={styles.exerciseInputsRow}>
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Sets</Text>
@@ -422,46 +394,42 @@ export default function UploadWorkoutScreen({ navigation }: any) {
           />
         </View>
 
-        {/* Workout Type Section */}
+        {/* Workout Type Section - Compact */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Choose Workout Type</Text>
           <FlatList
             data={workoutTypes}
             renderItem={renderWorkoutType}
             keyExtractor={(item) => item.id}
-            numColumns={2}
+            numColumns={3}
             columnWrapperStyle={styles.workoutTypeRow}
             scrollEnabled={false}
           />
         </View>
 
-        {/* Selected Type Confirmation */}
         {selectedWorkoutType && (
-          <View style={styles.selectedTypeIndicator}>
+          <View
+            style={[
+              styles.selectedTypeIndicator,
+              { borderColor: selectedType?.color },
+            ]}
+          >
             <Ionicons
               name="checkmark-circle"
-              size={20}
+              size={16}
               color={selectedType?.color}
             />
             <Text
               style={[styles.selectedTypeText, { color: selectedType?.color }]}
             >
-              {selectedType?.name} selected
+              {selectedType?.name}
             </Text>
           </View>
         )}
 
-        {/* Exercises Section - Shows automatically after workout type selection */}
+        {/* Exercises Section - Always visible when workout type is selected */}
         {selectedWorkoutType && (
-          <Animated.View
-            style={[
-              styles.section,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              },
-            ]}
-          >
+          <View style={styles.section}>
             <View style={styles.exercisesHeader}>
               <Text style={styles.sectionTitle}>Exercises</Text>
               <TouchableOpacity
@@ -497,7 +465,7 @@ export default function UploadWorkoutScreen({ navigation }: any) {
                 ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
               />
             )}
-          </Animated.View>
+          </View>
         )}
       </ScrollView>
 
@@ -565,51 +533,51 @@ const styles = StyleSheet.create({
   },
   workoutTypeRow: {
     justifyContent: "space-between",
-    marginBottom: 12,
+    marginBottom: 8,
   },
   workoutTypeCard: {
     backgroundColor: "white",
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 12,
+    padding: 12,
     alignItems: "center",
-    flex: 0.48,
+    flex: 0.31,
     borderWidth: 1,
     borderColor: "#e9ecef",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 2,
+    elevation: 1,
     position: "relative",
   },
   workoutTypeIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 8,
   },
   workoutTypeName: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "600",
     textAlign: "center",
     color: "#1a1a1a",
-    marginBottom: 4,
+    marginBottom: 2,
   },
   workoutTypeDescription: {
-    fontSize: 12,
+    fontSize: 10,
     color: "#666",
     textAlign: "center",
-    lineHeight: 16,
+    lineHeight: 12,
   },
   selectedIndicator: {
     position: "absolute",
-    top: 12,
-    right: 12,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    top: 8,
+    right: 8,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -618,11 +586,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginHorizontal: 20,
-    marginBottom: 20,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    marginBottom: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     backgroundColor: "white",
-    borderRadius: 12,
+    borderRadius: 20,
+    borderWidth: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -630,8 +599,8 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   selectedTypeText: {
-    marginLeft: 8,
-    fontSize: 16,
+    marginLeft: 6,
+    fontSize: 14,
     fontWeight: "600",
   },
   exercisesHeader: {
