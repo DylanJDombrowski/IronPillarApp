@@ -26,6 +26,7 @@ export default function SearchUsersScreen({
 
   useEffect(() => {
     getCurrentUser();
+    ensureUserProfile(); // Ensure current user profile exists
   }, []);
 
   useEffect(() => {
@@ -46,6 +47,150 @@ export default function SearchUsersScreen({
     } = await supabase.auth.getUser();
     if (user) {
       setCurrentUserId(user.id);
+      console.log("🆔 Current user set:", user.id, user.email);
+    }
+  };
+
+  // SYNC ALL: Function to create profiles for all auth users (admin function)
+  const syncAllUsers = async () => {
+    try {
+      console.log("🔄 Syncing all users...");
+
+      // This is a workaround - normally you'd use the SQL trigger
+      // For now, we'll ask Dylan to log into the app and it will create his profile
+
+      Alert.alert(
+        "Sync All Users",
+        "To see all users:\n\n1. Have Dylan log into the app\n2. His profile will be auto-created\n3. Then you can search for him!\n\nOr run the SQL trigger in Supabase.",
+        [{ text: "OK" }]
+      );
+    } catch (error) {
+      console.error("Sync all error:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      Alert.alert("Sync Error", errorMessage);
+    }
+  };
+
+  // SYNC: Function to ensure current user profile exists
+  const ensureUserProfile = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      console.log("🔄 Ensuring profile exists for:", user.email);
+
+      // Check if profile exists
+      const { data: existingProfile, error: checkError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      if (existingProfile) {
+        console.log("✅ Profile already exists:", existingProfile);
+        return;
+      }
+
+      console.log("❌ Profile missing, creating...");
+
+      // Create profile if it doesn't exist
+      const newProfile = {
+        id: user.id,
+        username: user.email?.split("@")[0] || `user_${Date.now()}`,
+        full_name:
+          user.user_metadata?.full_name || user.email?.split("@")[0] || "User",
+        avatar_url: null,
+        friend_count: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data: createdProfile, error: createError } = await supabase
+        .from("profiles")
+        .insert(newProfile)
+        .select()
+        .single();
+
+      if (createError) {
+        console.error("❌ Error creating profile:", createError);
+        throw createError;
+      }
+
+      console.log("✅ Profile created:", createdProfile);
+      Alert.alert("Profile Synced", "User profile has been created/updated");
+    } catch (error) {
+      console.error("Sync error:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      Alert.alert("Sync Error", errorMessage);
+    }
+  };
+
+  // ENHANCED DEBUG: Check everything about profiles
+  const debugDatabase = async () => {
+    try {
+      console.log("🔍 DEBUG: Comprehensive database check...");
+
+      // Check current user
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      console.log("👤 Current auth user:", user?.id, user?.email);
+
+      // Check ALL profiles without any filters
+      const { data: allProfiles, error: profileError } = await supabase
+        .from("profiles")
+        .select("*");
+
+      console.log("📊 ALL profiles in database:", allProfiles);
+      console.log("❌ Profile error:", profileError);
+
+      // Check auth.users table (if accessible)
+      const { data: authUsers, error: authError } =
+        await supabase.auth.admin.listUsers();
+      console.log("👥 Auth users:", authUsers);
+      console.log("❌ Auth error:", authError);
+
+      // Test specific search for Dylan
+      const { data: dylanSearch, error: dylanError } = await supabase
+        .from("profiles")
+        .select("*")
+        .ilike("username", "%dylan%");
+
+      console.log("🎯 Dylan specific search:", dylanSearch);
+      console.log("❌ Dylan search error:", dylanError);
+
+      // Test search for any name containing 'a'
+      const { data: broadSearch, error: broadError } = await supabase
+        .from("profiles")
+        .select("*")
+        .or("username.ilike.%a%,full_name.ilike.%a%");
+
+      console.log("🔍 Broad search (contains 'a'):", broadSearch);
+      console.log("❌ Broad search error:", broadError);
+
+      // Check table schema
+      const { data: tableInfo, error: schemaError } = await supabase
+        .rpc("get_table_columns", { table_name: "profiles" })
+        .single();
+
+      console.log("📋 Table schema:", tableInfo);
+      console.log("❌ Schema error:", schemaError);
+
+      Alert.alert(
+        "Debug Results",
+        `Total profiles: ${
+          allProfiles?.length || 0
+        }\nCheck console for detailed logs`
+      );
+    } catch (error) {
+      console.error("Debug error:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      Alert.alert("Debug Error", errorMessage);
     }
   };
 
@@ -54,20 +199,54 @@ export default function SearchUsersScreen({
 
     setLoading(true);
     try {
-      // Search users by username or full_name
+      console.log("🔍 Searching for:", searchQuery.trim());
+      console.log("🆔 Current user ID:", currentUserId);
+
+      // Enhanced search - search both with and without @ symbol
+      const cleanQuery = searchQuery.trim().replace("@", "");
+
+      console.log("🧹 Clean query:", cleanQuery);
+
+      // Search users by username or full_name (case insensitive)
       const { data: users, error } = await supabase
         .from("profiles")
         .select("*")
         .neq("id", currentUserId) // Exclude current user
-        .or(`username.ilike.%${searchQuery}%,full_name.ilike.%${searchQuery}%`)
+        .or(`username.ilike.%${cleanQuery}%,full_name.ilike.%${cleanQuery}%`)
         .limit(20);
 
-      if (error) throw error;
+      console.log("📊 Raw search results:", users);
+      console.log("❌ Search error:", error);
+
+      if (error) {
+        console.error("Search error details:", error);
+        throw error;
+      }
+
+      if (!users || users.length === 0) {
+        console.log("🚫 No users found, checking if profiles exist...");
+
+        // Debug: Check if there are ANY profiles in the database
+        const { data: allProfiles, error: debugError } = await supabase
+          .from("profiles")
+          .select("id, username, full_name")
+          .limit(5);
+
+        console.log("🔍 Debug - All profiles sample:", allProfiles);
+        console.log("❌ Debug error:", debugError);
+
+        setSearchResults([]);
+        return;
+      }
+
+      console.log("✅ Found users:", users.length);
 
       // Get friend status for each user
       const usersWithStatus = await Promise.all(
         users.map(async (user) => {
+          console.log("👤 Processing user:", user.username, user.full_name);
           const friendStatus = await getFriendStatus(currentUserId, user.id);
+          console.log("🤝 Friend status for", user.username, ":", friendStatus);
           return {
             ...user,
             friend_status: friendStatus,
@@ -75,10 +254,13 @@ export default function SearchUsersScreen({
         })
       );
 
+      console.log("🎯 Final results with status:", usersWithStatus);
       setSearchResults(usersWithStatus);
     } catch (error) {
-      console.error("Error searching users:", error);
-      Alert.alert("Error", "Failed to search users");
+      console.error("❌ Error searching users:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      Alert.alert("Error", `Failed to search users: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -89,21 +271,33 @@ export default function SearchUsersScreen({
     targetUserId: string
   ): Promise<SearchUser["friend_status"]> => {
     try {
+      console.log(
+        "🤝 Checking friend status between:",
+        userId,
+        "and",
+        targetUserId
+      );
+
       // Check if already friends (normalize user IDs - smaller ID goes to user1_id)
       const user1_id = userId < targetUserId ? userId : targetUserId;
       const user2_id = userId < targetUserId ? targetUserId : userId;
 
-      const { data: friendship } = await supabase
+      console.log("📝 Normalized IDs:", user1_id, user2_id);
+
+      const { data: friendship, error: friendshipError } = await supabase
         .from("friendships")
         .select("*")
         .eq("user1_id", user1_id)
         .eq("user2_id", user2_id)
         .single();
 
+      console.log("🤝 Friendship result:", friendship);
+      console.log("❌ Friendship error:", friendshipError);
+
       if (friendship) return "friends";
 
       // Check for pending friend requests
-      const { data: sentRequest } = await supabase
+      const { data: sentRequest, error: sentError } = await supabase
         .from("friend_requests")
         .select("*")
         .eq("requester_id", userId)
@@ -111,9 +305,12 @@ export default function SearchUsersScreen({
         .eq("status", "pending")
         .single();
 
+      console.log("📤 Sent request:", sentRequest);
+      console.log("❌ Sent error:", sentError);
+
       if (sentRequest) return "pending_sent";
 
-      const { data: receivedRequest } = await supabase
+      const { data: receivedRequest, error: receivedError } = await supabase
         .from("friend_requests")
         .select("*")
         .eq("requester_id", targetUserId)
@@ -121,10 +318,14 @@ export default function SearchUsersScreen({
         .eq("status", "pending")
         .single();
 
+      console.log("📥 Received request:", receivedRequest);
+      console.log("❌ Received error:", receivedError);
+
       if (receivedRequest) return "pending_received";
 
       return "none";
     } catch (error) {
+      console.error("❌ Error in getFriendStatus:", error);
       return "none";
     }
   };
@@ -285,7 +486,17 @@ export default function SearchUsersScreen({
           <Ionicons name="arrow-back" size={24} color="#007AFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Search Users</Text>
-        <View style={styles.placeholder} />
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.syncButton}
+            onPress={ensureUserProfile}
+          >
+            <Text style={styles.syncText}>Sync</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.debugButton} onPress={debugDatabase}>
+            <Text style={styles.debugText}>Debug</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Search Input */}
@@ -366,7 +577,33 @@ const styles = StyleSheet.create({
     color: "#1a1a1a",
   },
   placeholder: {
-    width: 40, // Same width as back button for centering
+    width: 60, // Same width as debug button for centering
+  },
+  headerActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  syncButton: {
+    backgroundColor: "#28a745",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  syncText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  debugButton: {
+    backgroundColor: "#FF3B30",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  debugText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "600",
   },
   searchContainer: {
     padding: 20,
