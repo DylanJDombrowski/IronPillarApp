@@ -210,7 +210,10 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       {/* Header with Search */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Home</Text>
-        <TouchableOpacity style={styles.searchButton}>
+        <TouchableOpacity
+          style={styles.searchButton}
+          onPress={() => navigation.navigate("SearchUsers")}
+        >
           <Ionicons name="search" size={24} color="#007AFF" />
         </TouchableOpacity>
       </View>

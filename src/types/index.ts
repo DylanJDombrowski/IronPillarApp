@@ -5,8 +5,33 @@ export interface Profile {
   username: string | null;
   full_name: string | null;
   avatar_url: string | null;
+  friend_count: number; // NEW: Added friend count
   created_at: string;
   updated_at: string;
+}
+
+// NEW: Friend system types
+export interface FriendRequest {
+  id: string;
+  requester_id: string;
+  receiver_id: string;
+  status: "pending" | "accepted" | "rejected";
+  created_at: string;
+  updated_at: string;
+  requester?: Profile; // Joined profile data
+  receiver?: Profile; // Joined profile data
+}
+
+export interface Friendship {
+  id: string;
+  user1_id: string;
+  user2_id: string;
+  created_at: string;
+}
+
+export interface SearchUser extends Profile {
+  mutual_friends_count?: number;
+  friend_status?: "none" | "pending_sent" | "pending_received" | "friends";
 }
 
 export interface Exercise {
@@ -100,10 +125,15 @@ export type RootStackParamList = {
 };
 
 export type MainTabParamList = {
-  Workouts: undefined;
+  Home: undefined; // UPDATED: Changed from Workouts to Home
   Library: undefined;
   History: undefined;
   Profile: undefined;
+};
+
+export type HomeStackParamList = {
+  HomeFeed: undefined;
+  SearchUsers: undefined; // NEW: Search users screen
 };
 
 export type WorkoutStackParamList = {

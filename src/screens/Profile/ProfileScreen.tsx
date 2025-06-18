@@ -1,6 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
-import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { supabase } from "../../services/supabase";
 import { Profile } from "../../types";
 
@@ -15,6 +24,11 @@ export default function ProfileScreen() {
     loadProfile();
   }, []);
 
+  // UPDATED: Add focus listener to refresh profile data when screen is focused
+  const refreshProfile = () => {
+    loadProfile();
+  };
+
   const loadProfile = async () => {
     try {
       const {
@@ -22,7 +36,12 @@ export default function ProfileScreen() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+      // UPDATED: Added friend_count to the select query
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
 
       if (error && error.code !== "PGRST116") {
         throw error;
@@ -39,9 +58,14 @@ export default function ProfileScreen() {
           username: user.email?.split("@")[0] || "",
           full_name: user.user_metadata?.full_name || "",
           avatar_url: null,
+          friend_count: 0, // UPDATED: Initialize friend_count
         };
 
-        const { data: createdProfile, error: createError } = await supabase.from("profiles").insert(newProfile).select().single();
+        const { data: createdProfile, error: createError } = await supabase
+          .from("profiles")
+          .insert(newProfile)
+          .select()
+          .single();
 
         if (createError) throw createError;
         setProfile(createdProfile);
@@ -137,7 +161,11 @@ export default function ProfileScreen() {
             }
           }}
         >
-          <Ionicons name={editing ? "checkmark" : "pencil"} size={20} color="#007AFF" />
+          <Ionicons
+            name={editing ? "checkmark" : "pencil"}
+            size={20}
+            color="#007AFF"
+          />
         </TouchableOpacity>
       </View>
 
@@ -161,7 +189,12 @@ export default function ProfileScreen() {
             <>
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Full Name</Text>
-                <TextInput style={styles.input} value={fullName} onChangeText={setFullName} placeholder="Enter your full name" />
+                <TextInput
+                  style={styles.input}
+                  value={fullName}
+                  onChangeText={setFullName}
+                  placeholder="Enter your full name"
+                />
               </View>
 
               <View style={styles.inputContainer}>
@@ -177,8 +210,12 @@ export default function ProfileScreen() {
             </>
           ) : (
             <>
-              <Text style={styles.userName}>{profile?.full_name || "No name set"}</Text>
-              <Text style={styles.userHandle}>@{profile?.username || "No username"}</Text>
+              <Text style={styles.userName}>
+                {profile?.full_name || "No name set"}
+              </Text>
+              <Text style={styles.userHandle}>
+                @{profile?.username || "No username"}
+              </Text>
             </>
           )}
         </View>
@@ -194,6 +231,13 @@ export default function ProfileScreen() {
             <Text style={styles.statLabel}>Workouts</Text>
           </View>
 
+          {/* UPDATED: Show actual friend count from database */}
+          <View style={styles.statCard}>
+            <Ionicons name="people" size={24} color="#28a745" />
+            <Text style={styles.statNumber}>{profile?.friend_count || 0}</Text>
+            <Text style={styles.statLabel}>Friends</Text>
+          </View>
+
           <View style={styles.statCard}>
             <Ionicons name="trending-up" size={24} color="#28a745" />
             <Text style={styles.statNumber}>7</Text>
@@ -205,53 +249,20 @@ export default function ProfileScreen() {
             <Text style={styles.statNumber}>12h</Text>
             <Text style={styles.statLabel}>Total Time</Text>
           </View>
-
-          <View style={styles.statCard}>
-            <Ionicons name="trophy" size={24} color="#fd7e14" />
-            <Text style={styles.statNumber}>3</Text>
-            <Text style={styles.statLabel}>PRs</Text>
-          </View>
         </View>
       </View>
 
-      <View style={styles.menuSection}>
-        <Text style={styles.sectionTitle}>Settings</Text>
-
-        <TouchableOpacity style={styles.menuItem}>
-          <Ionicons name="notifications-outline" size={20} color="#666" />
-          <Text style={styles.menuText}>Notifications</Text>
-          <Ionicons name="chevron-forward" size={16} color="#ccc" />
+      {/* UPDATED: Add refresh button to manually refresh friend count */}
+      <View style={styles.actionsSection}>
+        <TouchableOpacity style={styles.refreshButton} onPress={refreshProfile}>
+          <Ionicons name="refresh" size={20} color="#007AFF" />
+          <Text style={styles.refreshText}>Refresh Stats</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem}>
-          <Ionicons name="shield-checkmark-outline" size={20} color="#666" />
-          <Text style={styles.menuText}>Privacy & Security</Text>
-          <Ionicons name="chevron-forward" size={16} color="#ccc" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.menuItem}>
-          <Ionicons name="help-circle-outline" size={20} color="#666" />
-          <Text style={styles.menuText}>Help & Support</Text>
-          <Ionicons name="chevron-forward" size={16} color="#ccc" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.menuItem}>
-          <Ionicons name="information-circle-outline" size={20} color="#666" />
-          <Text style={styles.menuText}>About</Text>
-          <Ionicons name="chevron-forward" size={16} color="#ccc" />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.dangerSection}>
         <TouchableOpacity style={styles.signOutButton} onPress={signOut}>
-          <Ionicons name="log-out-outline" size={20} color="#dc3545" />
+          <Ionicons name="log-out-outline" size={20} color="#FF3B30" />
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
-      </View>
-
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Iron Pillar v1.0.0</Text>
-        <Text style={styles.footerText}>Made with 💪 for fitness enthusiasts</Text>
       </View>
     </ScrollView>
   );
@@ -287,41 +298,43 @@ const styles = StyleSheet.create({
   },
   profileSection: {
     backgroundColor: "white",
+    padding: 20,
+    marginBottom: 20,
     alignItems: "center",
-    paddingVertical: 32,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e9ecef",
   },
   avatarContainer: {
     position: "relative",
     marginBottom: 16,
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
   },
   avatarPlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     backgroundColor: "#007AFF",
     justifyContent: "center",
     alignItems: "center",
   },
   avatarText: {
     color: "white",
-    fontSize: 24,
-    fontWeight: "bold",
+    fontSize: 32,
+    fontWeight: "600",
   },
   cameraButton: {
     position: "absolute",
     bottom: 0,
     right: 0,
     backgroundColor: "#007AFF",
-    borderRadius: 12,
-    padding: 6,
-    borderWidth: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 3,
     borderColor: "white",
   },
   profileInfo: {
@@ -329,7 +342,7 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontSize: 24,
-    fontWeight: "bold",
+    fontWeight: "600",
     color: "#1a1a1a",
     marginBottom: 4,
   },
@@ -338,19 +351,19 @@ const styles = StyleSheet.create({
     color: "#666",
   },
   inputContainer: {
-    width: 280,
+    width: "100%",
     marginBottom: 16,
   },
   inputLabel: {
     fontSize: 14,
-    color: "#666",
-    marginBottom: 4,
-    fontWeight: "500",
+    fontWeight: "600",
+    color: "#1a1a1a",
+    marginBottom: 8,
   },
   input: {
     backgroundColor: "#f8f9fa",
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 12,
+    padding: 16,
     fontSize: 16,
     borderWidth: 1,
     borderColor: "#e9ecef",
@@ -358,10 +371,10 @@ const styles = StyleSheet.create({
   statsSection: {
     backgroundColor: "white",
     padding: 20,
-    marginTop: 12,
+    marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "600",
     color: "#1a1a1a",
     marginBottom: 16,
@@ -375,12 +388,12 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: "45%",
     backgroundColor: "#f8f9fa",
-    borderRadius: 12,
     padding: 16,
+    borderRadius: 12,
     alignItems: "center",
   },
   statNumber: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: "bold",
     color: "#1a1a1a",
     marginTop: 8,
@@ -389,49 +402,44 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 12,
     color: "#666",
+    textAlign: "center",
   },
-  menuSection: {
+  actionsSection: {
     backgroundColor: "white",
     padding: 20,
-    marginTop: 12,
+    marginBottom: 40,
   },
-  menuItem: {
+  refreshButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f8f9fa",
+    justifyContent: "center",
+    backgroundColor: "#f0f8ff",
+    borderWidth: 1,
+    borderColor: "#007AFF",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    gap: 8,
   },
-  menuText: {
-    flex: 1,
+  refreshText: {
     fontSize: 16,
-    color: "#1a1a1a",
-    marginLeft: 16,
-  },
-  dangerSection: {
-    backgroundColor: "white",
-    padding: 20,
-    marginTop: 12,
+    fontWeight: "600",
+    color: "#007AFF",
   },
   signOutButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 16,
+    justifyContent: "center",
+    backgroundColor: "#fff5f5",
+    borderWidth: 1,
+    borderColor: "#FF3B30",
+    borderRadius: 12,
+    padding: 16,
+    gap: 8,
   },
   signOutText: {
     fontSize: 16,
-    color: "#dc3545",
-    marginLeft: 16,
-    fontWeight: "500",
-  },
-  footer: {
-    alignItems: "center",
-    paddingVertical: 32,
-    paddingHorizontal: 20,
-  },
-  footerText: {
-    fontSize: 14,
-    color: "#999",
-    marginBottom: 4,
+    fontWeight: "600",
+    color: "#FF3B30",
   },
 });

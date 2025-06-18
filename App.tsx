@@ -14,6 +14,7 @@ import { supabase } from "./src/services/supabase";
 import LoginScreen from "./src/screens/Auth/LoginScreen";
 import SignupScreen from "./src/screens/Auth/SignupScreen";
 import HomeScreen from "./src/screens/Home/HomeScreen"; // NEW: Home screen for friends' workouts
+import SearchUsersScreen from "./src/screens/Home/SearchUsersScreen"; // NEW: Search users screen
 import WorkoutHistoryScreen from "./src/screens/History/WorkoutHistoryScreen";
 import ExerciseLibraryScreen from "./src/screens/Library/ExerciseLibraryScreen";
 import MyWorkoutsScreen from "./src/screens/Workouts/WorkoutsScreen"; // NEW: Moved workout management here
@@ -24,6 +25,24 @@ import WorkoutDetailScreen from "./src/screens/Workouts/WorkoutDetailScreen";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
+
+// Stack navigator for Home (includes search)
+function HomeStack() {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen
+        name="HomeFeed"
+        component={HomeScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="SearchUsers"
+        component={SearchUsersScreen}
+        options={{ headerShown: false }}
+      />
+    </Stack.Navigator>
+  );
+}
 
 // Stack navigator for workout-related screens (now accessed through Library or other areas)
 function WorkoutStack() {
@@ -167,7 +186,7 @@ function MainTabs() {
       })}
     >
       {/* UPDATED: Home tab shows friends' workouts */}
-      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Home" component={HomeStack} />
       {/* UPDATED: Library now includes access to My Workouts */}
       <Tab.Screen name="Library" component={LibraryStack} />
       <Tab.Screen
