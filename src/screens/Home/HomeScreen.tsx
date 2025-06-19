@@ -7,8 +7,19 @@ import {
   Text,
   TouchableOpacity,
   View,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from "react-native";
 import { supabase } from "../../services/supabase";
+
+// Enable LayoutAnimation on Android
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 interface FriendWorkout {
   id: string;
@@ -28,12 +39,27 @@ interface MyWorkout {
   type: string;
   completed_at: string;
   exercises_count: number;
-  duration_minutes: number;
+  exercises: WorkoutExerciseDisplay[];
+}
+
+interface WorkoutExerciseDisplay {
+  id: string;
+  name: string;
+  sets: number;
+  reps: number | null;
+  muscle_group: string;
+  workout_exercise_sets?: WorkoutExerciseSet[];
+}
+
+interface WorkoutExerciseSet {
+  set_number: number;
+  reps: number;
+  weight: number;
 }
 
 interface HomeScreenProps {
   navigation: any;
-  route: any; // Added for navigation params
+  route: any;
 }
 
 export default function HomeScreen({ navigation, route }: HomeScreenProps) {
@@ -44,6 +70,8 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
   const [myWorkouts, setMyWorkouts] = useState<MyWorkout[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [expandedWorkout, setExpandedWorkout] = useState<string | null>(null);
+  const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -114,7 +142,7 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
         return;
       }
 
-      // Load user's created workouts from the workouts table
+      // Load user's created workouts with detailed exercise information
       const { data: workouts, error } = await supabase
         .from("workouts")
         .select(
@@ -125,7 +153,10 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
           created_at,
           workout_exercises (
             id,
+            sets,
+            reps,
             exercise:exercises (
+              id,
               name,
               muscle_groups
             )
@@ -142,29 +173,46 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
 
       // Transform the data to match the MyWorkout interface
       const transformedWorkouts: MyWorkout[] =
-        workouts?.map((workout) => ({
-          id: workout.id,
-          name: workout.name,
-          type: workout.description?.includes("upper")
-            ? "upper_body"
-            : workout.description?.includes("lower")
-            ? "lower_body"
-            : workout.description?.includes("cardio")
-            ? "cardio"
-            : "other",
-          completed_at: workout.created_at, // Using created_at since these are saved workouts, not completed ones
-          exercises_count: workout.workout_exercises?.length || 0,
-          duration_minutes: Math.max(
-            30,
-            (workout.workout_exercises?.length || 0) * 10
-          ), // Estimated duration
-        })) || [];
+        workouts?.map((workout) => {
+          const exercises: WorkoutExerciseDisplay[] =
+            workout.workout_exercises?.map((we: any) => ({
+              id: we.exercise.id,
+              name: we.exercise.name,
+              sets: we.sets,
+              reps: we.reps,
+              muscle_group: we.exercise.muscle_groups?.[0] || "Unknown",
+              // For now, we'll create mock sets data since the saved workouts don't have actual weight/reps yet
+              workout_exercise_sets: Array.from(
+                { length: we.sets },
+                (_, index) => ({
+                  set_number: index + 1,
+                  reps: we.reps || 10,
+                  weight: 135, // Default weight for display
+                })
+              ),
+            })) || [];
+
+          return {
+            id: workout.id,
+            name: workout.name,
+            type: workout.description?.includes("upper")
+              ? "upper_body"
+              : workout.description?.includes("lower")
+              ? "lower_body"
+              : workout.description?.includes("cardio")
+              ? "cardio"
+              : "other",
+            completed_at: workout.created_at,
+            exercises_count: workout.workout_exercises?.length || 0,
+            exercises: exercises,
+          };
+        }) || [];
 
       console.log("Loaded workouts:", transformedWorkouts);
       setMyWorkouts(transformedWorkouts);
     } catch (error) {
       console.error("Error loading my workouts:", error);
-      setMyWorkouts([]); // Set empty array on error
+      setMyWorkouts([]);
     }
   };
 
@@ -174,7 +222,6 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
   };
 
   const handleLike = async (workoutId: string) => {
-    // TODO: Implement like functionality
     setFriendWorkouts((prev) =>
       prev.map((workout) =>
         workout.id === workoutId
@@ -190,14 +237,35 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
     );
   };
 
-  const formatTimeAgo = (dateString: string) => {
-    const now = new Date();
-    const date = new Date(dateString);
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+  const toggleWorkoutExpansion = (workoutId: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedWorkout(expandedWorkout === workoutId ? null : workoutId);
+    setExpandedExercise(null); // Reset exercise expansion when toggling workout
+  };
 
-    if (diffInHours < 1) return "Just now";
-    if (diffInHours < 24) return `${Math.floor(diffInHours)}h ago`;
-    return `${Math.floor(diffInHours / 24)}d ago`;
+  const toggleExerciseExpansion = (exerciseKey: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedExercise(expandedExercise === exerciseKey ? null : exerciseKey);
+  };
+
+  const getWorkoutTypeColor = (type: string) => {
+    switch (type) {
+      case "upper_body":
+        return "#007AFF";
+      case "lower_body":
+        return "#FF9500";
+      case "cardio":
+        return "#FF3B30";
+      default:
+        return "#8E8E93";
+    }
+  };
+
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const month = date.getMonth() + 1; // getMonth() returns 0-11, so add 1
+    const day = date.getDate();
+    return `${month}/${day}`;
   };
 
   const renderFriendWorkoutCard = ({ item }: { item: FriendWorkout }) => (
@@ -263,35 +331,122 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
     </View>
   );
 
-  const renderMyWorkoutCard = ({ item }: { item: MyWorkout }) => (
-    <View style={styles.workoutCard}>
-      <View style={styles.myWorkoutHeader}>
-        <Text style={styles.myWorkoutName}>{item.name}</Text>
-        <Text style={styles.myWorkoutType}>
-          {item.type.replace("_", " ").toUpperCase()}
-        </Text>
+  const renderMyWorkoutCard = ({ item }: { item: MyWorkout }) => {
+    const isExpanded = expandedWorkout === item.id;
+    const workoutTypeColor = getWorkoutTypeColor(item.type);
+
+    return (
+      <View
+        style={[styles.workoutCard, isExpanded && styles.workoutCardExpanded]}
+      >
+        <TouchableOpacity
+          style={styles.myWorkoutHeader}
+          onPress={() => toggleWorkoutExpansion(item.id)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.workoutHeaderLeft}>
+            <Text style={styles.myWorkoutName}>{item.name}</Text>
+            <Text
+              style={[
+                styles.myWorkoutType,
+                {
+                  color: workoutTypeColor,
+                  backgroundColor: `${workoutTypeColor}15`,
+                },
+              ]}
+            >
+              {item.type.replace("_", " ").toUpperCase()}
+            </Text>
+          </View>
+          <Ionicons
+            name={isExpanded ? "chevron-up" : "chevron-down"}
+            size={20}
+            color="#666"
+          />
+        </TouchableOpacity>
+
+        <View style={styles.workoutStats}>
+          <View style={styles.statItem}>
+            <Ionicons name="barbell-outline" size={16} color="#007AFF" />
+            <Text style={styles.statText}>
+              {item.exercises_count} exercises
+            </Text>
+          </View>
+
+          <View style={styles.statItem}>
+            <Ionicons name="calendar-outline" size={16} color="#007AFF" />
+            <Text style={styles.statText}>
+              {formatTimeAgo(item.completed_at)}
+            </Text>
+          </View>
+        </View>
+
+        {/* Exercise List - Show when expanded */}
+        {isExpanded && (
+          <View style={styles.exercisesList}>
+            <Text style={styles.exercisesTitle}>Exercises:</Text>
+            {item.exercises.map((exercise, index) => {
+              const exerciseKey = `${item.id}-${exercise.id}`;
+              const isExerciseExpanded = expandedExercise === exerciseKey;
+
+              return (
+                <View key={exerciseKey} style={styles.exerciseItem}>
+                  <TouchableOpacity
+                    style={styles.exerciseItemHeader}
+                    onPress={() => toggleExerciseExpansion(exerciseKey)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.exerciseItemLeft}>
+                      <View
+                        style={[
+                          styles.exerciseNumber,
+                          { backgroundColor: workoutTypeColor },
+                        ]}
+                      >
+                        <Text style={styles.exerciseNumberText}>
+                          {index + 1}
+                        </Text>
+                      </View>
+                      <View style={styles.exerciseItemInfo}>
+                        <Text style={styles.exerciseItemName}>
+                          {exercise.name}
+                        </Text>
+                        <Text style={styles.exerciseItemDetails}>
+                          {exercise.sets} sets × {exercise.reps || 10} reps
+                        </Text>
+                      </View>
+                    </View>
+                    <Ionicons
+                      name={isExerciseExpanded ? "chevron-up" : "chevron-down"}
+                      size={16}
+                      color="#666"
+                    />
+                  </TouchableOpacity>
+
+                  {/* Sets Details - Show when exercise is expanded */}
+                  {isExerciseExpanded && exercise.workout_exercise_sets && (
+                    <View style={styles.setsContainer}>
+                      <Text style={styles.setsTitle}>Sets:</Text>
+                      {exercise.workout_exercise_sets.map((set, setIndex) => (
+                        <View key={setIndex} style={styles.setRow}>
+                          <Text style={styles.setLabel}>
+                            Set {set.set_number}
+                          </Text>
+                          <Text style={styles.setDetails}>
+                            {set.reps} reps @ {set.weight}lbs
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        )}
       </View>
-
-      <View style={styles.workoutStats}>
-        <View style={styles.statItem}>
-          <Ionicons name="barbell-outline" size={16} color="#007AFF" />
-          <Text style={styles.statText}>{item.exercises_count} exercises</Text>
-        </View>
-
-        <View style={styles.statItem}>
-          <Ionicons name="time-outline" size={16} color="#007AFF" />
-          <Text style={styles.statText}>{item.duration_minutes} min</Text>
-        </View>
-
-        <View style={styles.statItem}>
-          <Ionicons name="calendar-outline" size={16} color="#007AFF" />
-          <Text style={styles.statText}>
-            {formatTimeAgo(item.completed_at)}
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
+    );
+  };
 
   const renderFriendsEmptyState = () => (
     <View style={styles.emptyState}>
@@ -480,6 +635,9 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  workoutCardExpanded: {
+    paddingBottom: 24,
+  },
   userHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -536,17 +694,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
+  workoutHeaderLeft: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   myWorkoutName: {
     fontSize: 18,
     fontWeight: "600",
     color: "#1a1a1a",
     flex: 1,
+    marginRight: 12,
   },
   myWorkoutType: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#007AFF",
-    backgroundColor: "#e3f2fd",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -554,6 +717,7 @@ const styles = StyleSheet.create({
   workoutStats: {
     flexDirection: "row",
     gap: 20,
+    marginBottom: 12,
   },
   statItem: {
     flexDirection: "row",
@@ -563,6 +727,93 @@ const styles = StyleSheet.create({
   statText: {
     fontSize: 14,
     color: "#666",
+  },
+  // Exercise List Styles
+  exercisesList: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+  },
+  exercisesTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1a1a1a",
+    marginBottom: 12,
+  },
+  exerciseItem: {
+    marginBottom: 12,
+    backgroundColor: "#f8f9fa",
+    borderRadius: 12,
+    padding: 12,
+  },
+  exerciseItemHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  exerciseItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  exerciseNumber: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  exerciseNumberText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  exerciseItemInfo: {
+    flex: 1,
+  },
+  exerciseItemName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1a1a1a",
+  },
+  exerciseItemDetails: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 2,
+  },
+  // Sets Details Styles
+  setsContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#e9ecef",
+  },
+  setsTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1a1a1a",
+    marginBottom: 8,
+  },
+  setRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: "white",
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  setLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#666",
+  },
+  setDetails: {
+    fontSize: 12,
+    color: "#1a1a1a",
   },
   actions: {
     flexDirection: "row",
