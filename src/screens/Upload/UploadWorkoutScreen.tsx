@@ -32,6 +32,17 @@ interface Exercise {
   notes?: string;
 }
 
+interface PredefinedExercise {
+  id: string;
+  name: string;
+  muscleGroup: string;
+}
+
+interface SelectedExercise extends Exercise {
+  id: string;
+  muscleGroup: string;
+}
+
 interface WorkoutType {
   id: string;
   name: string;
@@ -72,12 +83,134 @@ const workoutTypes: WorkoutType[] = [
   },
 ];
 
+// 🔥 NEW: Predefined exercises for each workout type
+const predefinedExercises: Record<
+  string,
+  Record<string, PredefinedExercise[]>
+> = {
+  upper_body: {
+    Chest: [
+      { id: "bench_press", name: "Bench Press", muscleGroup: "Chest" },
+      {
+        id: "incline_dumbbell",
+        name: "Incline Dumbbell Press",
+        muscleGroup: "Chest",
+      },
+      { id: "dumbbell_flyes", name: "Dumbbell Flyes", muscleGroup: "Chest" },
+      { id: "push_ups", name: "Push-ups", muscleGroup: "Chest" },
+      { id: "dips", name: "Dips", muscleGroup: "Chest" },
+    ],
+    Back: [
+      { id: "lat_pulldowns", name: "Lat Pulldowns", muscleGroup: "Back" },
+      { id: "barbell_rows", name: "Barbell Rows", muscleGroup: "Back" },
+      { id: "t_bar_rows", name: "T-Bar Rows", muscleGroup: "Back" },
+      { id: "pull_ups", name: "Pull-ups", muscleGroup: "Back" },
+      { id: "deadlifts", name: "Deadlifts", muscleGroup: "Back" },
+    ],
+    Shoulders: [
+      {
+        id: "overhead_press",
+        name: "Overhead Press",
+        muscleGroup: "Shoulders",
+      },
+      {
+        id: "lateral_raises",
+        name: "Lateral Raises",
+        muscleGroup: "Shoulders",
+      },
+      {
+        id: "rear_delt_flyes",
+        name: "Rear Delt Flyes",
+        muscleGroup: "Shoulders",
+      },
+      { id: "arnold_press", name: "Arnold Press", muscleGroup: "Shoulders" },
+    ],
+    Arms: [
+      { id: "bicep_curls", name: "Bicep Curls", muscleGroup: "Arms" },
+      { id: "tricep_dips", name: "Tricep Dips", muscleGroup: "Arms" },
+      { id: "hammer_curls", name: "Hammer Curls", muscleGroup: "Arms" },
+      {
+        id: "tricep_extensions",
+        name: "Tricep Extensions",
+        muscleGroup: "Arms",
+      },
+    ],
+  },
+  lower_body: {
+    Quads: [
+      { id: "squats", name: "Squats", muscleGroup: "Quads" },
+      { id: "leg_press", name: "Leg Press", muscleGroup: "Quads" },
+      { id: "lunges", name: "Lunges", muscleGroup: "Quads" },
+      { id: "leg_extensions", name: "Leg Extensions", muscleGroup: "Quads" },
+    ],
+    Glutes: [
+      { id: "hip_thrusts", name: "Hip Thrusts", muscleGroup: "Glutes" },
+      {
+        id: "bulgarian_split_squats",
+        name: "Bulgarian Split Squats",
+        muscleGroup: "Glutes",
+      },
+      { id: "glute_bridges", name: "Glute Bridges", muscleGroup: "Glutes" },
+    ],
+    Hamstrings: [
+      {
+        id: "romanian_deadlifts",
+        name: "Romanian Deadlifts",
+        muscleGroup: "Hamstrings",
+      },
+      { id: "leg_curls", name: "Leg Curls", muscleGroup: "Hamstrings" },
+      {
+        id: "stiff_leg_deadlifts",
+        name: "Stiff Leg Deadlifts",
+        muscleGroup: "Hamstrings",
+      },
+    ],
+    Calves: [
+      { id: "calf_raises", name: "Calf Raises", muscleGroup: "Calves" },
+      {
+        id: "seated_calf_raises",
+        name: "Seated Calf Raises",
+        muscleGroup: "Calves",
+      },
+    ],
+  },
+  cardio: {
+    "High Intensity": [
+      { id: "burpees", name: "Burpees", muscleGroup: "High Intensity" },
+      {
+        id: "mountain_climbers",
+        name: "Mountain Climbers",
+        muscleGroup: "High Intensity",
+      },
+      { id: "jump_squats", name: "Jump Squats", muscleGroup: "High Intensity" },
+      { id: "high_knees", name: "High Knees", muscleGroup: "High Intensity" },
+    ],
+    "Low Intensity": [
+      { id: "walking", name: "Walking", muscleGroup: "Low Intensity" },
+      {
+        id: "light_jogging",
+        name: "Light Jogging",
+        muscleGroup: "Low Intensity",
+      },
+      { id: "cycling", name: "Cycling", muscleGroup: "Low Intensity" },
+      { id: "elliptical", name: "Elliptical", muscleGroup: "Low Intensity" },
+    ],
+  },
+  other: {
+    Custom: [
+      { id: "custom_exercise", name: "Custom Exercise", muscleGroup: "Custom" },
+    ],
+  },
+};
+
 export default function UploadWorkoutScreen({ navigation }: any) {
   const [selectedWorkoutType, setSelectedWorkoutType] = useState<string>("");
   const [workoutName, setWorkoutName] = useState<string>("");
-  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [selectedExercises, setSelectedExercises] = useState<
+    SelectedExercise[]
+  >([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [expandedExercise, setExpandedExercise] = useState<number | null>(null);
+  const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -85,50 +218,69 @@ export default function UploadWorkoutScreen({ navigation }: any) {
 
   const handleWorkoutTypeSelect = (typeId: string) => {
     setSelectedWorkoutType(typeId);
+    setSelectedExercises([]); // Reset selected exercises when changing workout type
+    setExpandedExercise(null); // Reset expanded state
 
     // Trigger smooth animations
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  };
 
-    // Auto-add first exercise for better UX
-    if (exercises.length === 0) {
-      setTimeout(() => addExercise(), 200);
+  const handleExerciseSelect = (exercise: PredefinedExercise) => {
+    // Check if exercise is already selected
+    const isSelected = selectedExercises.some((ex) => ex.id === exercise.id);
+
+    if (isSelected) {
+      // If already selected, toggle expansion or remove
+      if (expandedExercise === exercise.id) {
+        setExpandedExercise(null);
+      } else {
+        setExpandedExercise(exercise.id);
+      }
+    } else {
+      // Add new exercise with default values
+      const newExercise: SelectedExercise = {
+        id: exercise.id,
+        name: exercise.name,
+        muscleGroup: exercise.muscleGroup,
+        sets: 3,
+        reps: 10,
+        weight: 0,
+        notes: "",
+      };
+
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setSelectedExercises([...selectedExercises, newExercise]);
+      setExpandedExercise(exercise.id); // Auto-expand the newly added exercise
     }
   };
 
-  const addExercise = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    const newExercises = [
-      ...exercises,
-      { name: "", sets: 3, reps: 10, weight: 0, notes: "" },
-    ];
-    setExercises(newExercises);
-
-    // Auto-expand the newly added exercise
-    setExpandedExercise(newExercises.length - 1);
+  const updateExercise = (
+    exerciseId: string,
+    field: keyof Exercise,
+    value: any
+  ) => {
+    const updatedExercises = selectedExercises.map((ex) =>
+      ex.id === exerciseId ? { ...ex, [field]: value } : ex
+    );
+    setSelectedExercises(updatedExercises);
   };
 
-  const updateExercise = (index: number, field: keyof Exercise, value: any) => {
-    const updatedExercises = [...exercises];
-    updatedExercises[index] = { ...updatedExercises[index], [field]: value };
-    setExercises(updatedExercises);
-  };
-
-  const removeExercise = (index: number) => {
+  const removeExercise = (exerciseId: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    const updatedExercises = exercises.filter((_, i) => i !== index);
-    setExercises(updatedExercises);
+    const updatedExercises = selectedExercises.filter(
+      (ex) => ex.id !== exerciseId
+    );
+    setSelectedExercises(updatedExercises);
 
     // Reset expanded state if needed
-    if (expandedExercise === index) {
+    if (expandedExercise === exerciseId) {
       setExpandedExercise(null);
-    } else if (expandedExercise && expandedExercise > index) {
-      setExpandedExercise(expandedExercise - 1);
     }
   };
 
-  const toggleExerciseExpansion = (index: number) => {
+  const toggleExerciseExpansion = (exerciseId: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpandedExercise(expandedExercise === index ? null : index);
+    setExpandedExercise(expandedExercise === exerciseId ? null : exerciseId);
   };
 
   const handleSaveWorkout = async () => {
@@ -143,7 +295,7 @@ export default function UploadWorkoutScreen({ navigation }: any) {
       return;
     }
 
-    if (exercises.length === 0) {
+    if (selectedExercises.length === 0) {
       Alert.alert("Missing Exercises", "Please add at least one exercise");
       return;
     }
@@ -167,7 +319,7 @@ export default function UploadWorkoutScreen({ navigation }: any) {
           user_id: user.id,
           name: workoutName,
           type: selectedWorkoutType,
-          exercises: exercises,
+          exercises: selectedExercises,
           created_at: new Date().toISOString(),
         })
         .select()
@@ -239,14 +391,71 @@ export default function UploadWorkoutScreen({ navigation }: any) {
     );
   };
 
-  const renderExercise = ({
-    item,
-    index,
-  }: {
-    item: Exercise;
-    index: number;
-  }) => {
-    const isExpanded = expandedExercise === index;
+  // 🔥 NEW: Render muscle group sections with exercises
+  const renderMuscleGroup = (
+    muscleGroup: string,
+    exercises: PredefinedExercise[]
+  ) => {
+    const selectedType = getSelectedWorkoutType();
+
+    return (
+      <View key={muscleGroup} style={styles.muscleGroupSection}>
+        <Text style={[styles.muscleGroupTitle, { color: selectedType?.color }]}>
+          {muscleGroup}
+        </Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.exerciseStripsContainer}
+        >
+          {exercises.map((exercise) => {
+            const isSelected = selectedExercises.some(
+              (ex) => ex.id === exercise.id
+            );
+
+            return (
+              <TouchableOpacity
+                key={exercise.id}
+                style={[
+                  styles.exerciseStrip,
+                  isSelected && {
+                    borderColor: selectedType?.color,
+                    borderWidth: 2,
+                    backgroundColor: `${selectedType?.color}10`,
+                  },
+                ]}
+                onPress={() => handleExerciseSelect(exercise)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.exerciseStripText,
+                    isSelected && {
+                      color: selectedType?.color,
+                      fontWeight: "600",
+                    },
+                  ]}
+                >
+                  {exercise.name}
+                </Text>
+                {isSelected && (
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={16}
+                    color={selectedType?.color}
+                    style={styles.exerciseStripCheck}
+                  />
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+    );
+  };
+
+  const renderExercise = ({ item }: { item: SelectedExercise }) => {
+    const isExpanded = expandedExercise === item.id;
     const selectedType = getSelectedWorkoutType();
 
     return (
@@ -255,7 +464,7 @@ export default function UploadWorkoutScreen({ navigation }: any) {
       >
         <TouchableOpacity
           style={styles.exerciseHeader}
-          onPress={() => toggleExerciseExpansion(index)}
+          onPress={() => toggleExerciseExpansion(item.id)}
           activeOpacity={0.7}
         >
           <View style={styles.exerciseHeaderLeft}>
@@ -265,12 +474,12 @@ export default function UploadWorkoutScreen({ navigation }: any) {
                 { backgroundColor: selectedType?.color },
               ]}
             >
-              <Text style={styles.exerciseNumberText}>{index + 1}</Text>
+              <Text style={styles.exerciseNumberText}>
+                {selectedExercises.findIndex((ex) => ex.id === item.id) + 1}
+              </Text>
             </View>
             <View style={styles.exerciseInfo}>
-              <Text style={styles.exerciseName}>
-                {item.name || `Exercise ${index + 1}`}
-              </Text>
+              <Text style={styles.exerciseName}>{item.name}</Text>
               <Text style={styles.exerciseDetails}>
                 {item.sets} sets × {item.reps} reps
                 {item.weight > 0 && ` @ ${item.weight}lbs`}
@@ -287,16 +496,6 @@ export default function UploadWorkoutScreen({ navigation }: any) {
         {isExpanded && (
           <View style={styles.exerciseForm}>
             <View style={styles.formRow}>
-              <Text style={styles.inputLabel}>Exercise Name</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="e.g., Push-ups, Squats"
-                value={item.name}
-                onChangeText={(value) => updateExercise(index, "name", value)}
-              />
-            </View>
-
-            <View style={styles.formRow}>
               <View style={styles.formColumn}>
                 <Text style={styles.inputLabel}>Sets</Text>
                 <TextInput
@@ -305,7 +504,7 @@ export default function UploadWorkoutScreen({ navigation }: any) {
                   keyboardType="numeric"
                   value={item.sets?.toString()}
                   onChangeText={(value) =>
-                    updateExercise(index, "sets", parseInt(value) || 0)
+                    updateExercise(item.id, "sets", parseInt(value) || 0)
                   }
                 />
               </View>
@@ -317,7 +516,7 @@ export default function UploadWorkoutScreen({ navigation }: any) {
                   keyboardType="numeric"
                   value={item.reps?.toString()}
                   onChangeText={(value) =>
-                    updateExercise(index, "reps", parseInt(value) || 0)
+                    updateExercise(item.id, "reps", parseInt(value) || 0)
                   }
                 />
               </View>
@@ -329,7 +528,7 @@ export default function UploadWorkoutScreen({ navigation }: any) {
                   keyboardType="numeric"
                   value={item.weight?.toString()}
                   onChangeText={(value) =>
-                    updateExercise(index, "weight", parseFloat(value) || 0)
+                    updateExercise(item.id, "weight", parseFloat(value) || 0)
                   }
                 />
               </View>
@@ -341,14 +540,16 @@ export default function UploadWorkoutScreen({ navigation }: any) {
                 style={styles.textInput}
                 placeholder="Rest time, form cues, etc."
                 value={item.notes}
-                onChangeText={(value) => updateExercise(index, "notes", value)}
+                onChangeText={(value) =>
+                  updateExercise(item.id, "notes", value)
+                }
                 multiline
               />
             </View>
 
             <TouchableOpacity
               style={styles.removeButton}
-              onPress={() => removeExercise(index)}
+              onPress={() => removeExercise(item.id)}
               activeOpacity={0.7}
             >
               <Ionicons name="trash-outline" size={16} color="#FF3B30" />
@@ -382,7 +583,6 @@ export default function UploadWorkoutScreen({ navigation }: any) {
         {/* Workout Type Selection */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Select Workout Type</Text>
-          {/* 🔥 UPDATED: Changed numColumns from 3 to 2 for 2x2 grid */}
           <FlatList
             data={workoutTypes}
             renderItem={renderWorkoutType}
@@ -396,47 +596,35 @@ export default function UploadWorkoutScreen({ navigation }: any) {
         {/* Exercises Section - Always visible when workout type is selected */}
         {selectedWorkoutType && (
           <View style={styles.section}>
-            <View style={styles.exercisesHeader}>
-              <Text style={styles.sectionTitle}>Exercises</Text>
-              <TouchableOpacity
-                style={[
-                  styles.addExerciseButton,
-                  { backgroundColor: selectedType?.color },
-                ]}
-                onPress={addExercise}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="add" size={20} color="white" />
-                <Text style={styles.addExerciseText}>Add Exercise</Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.sectionTitle}>Select Exercises</Text>
+            {predefinedExercises[selectedWorkoutType] &&
+              Object.entries(predefinedExercises[selectedWorkoutType]).map(
+                ([muscleGroup, exercises]) =>
+                  renderMuscleGroup(muscleGroup, exercises)
+              )}
+          </View>
+        )}
 
-            {exercises.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Ionicons name="fitness-outline" size={48} color="#ccc" />
-                <Text style={styles.emptyStateText}>
-                  Ready to add exercises!
-                </Text>
-                <Text style={styles.emptyStateSubtext}>
-                  Tap "Add Exercise" to start building your{" "}
-                  {selectedType?.name.toLowerCase()} workout
-                </Text>
-              </View>
-            ) : (
-              <FlatList
-                data={exercises}
-                renderItem={renderExercise}
-                keyExtractor={(_, index) => index.toString()}
-                scrollEnabled={false}
-                ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-              />
-            )}
+        {/* Selected Exercises Section */}
+        {selectedExercises.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Your Workout ({selectedExercises.length} exercise
+              {selectedExercises.length !== 1 ? "s" : ""})
+            </Text>
+            <FlatList
+              data={selectedExercises}
+              renderItem={renderExercise}
+              keyExtractor={(item) => item.id}
+              scrollEnabled={false}
+              ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+            />
           </View>
         )}
       </ScrollView>
 
       {/* Fixed Bottom Save Button */}
-      {selectedWorkoutType && exercises.length > 0 && (
+      {selectedWorkoutType && selectedExercises.length > 0 && (
         <View style={styles.bottomContainer}>
           <TouchableOpacity
             style={[
@@ -454,8 +642,8 @@ export default function UploadWorkoutScreen({ navigation }: any) {
               <>
                 <Ionicons name="checkmark-circle" size={20} color="white" />
                 <Text style={styles.saveButtonText}>
-                  Save Workout ({exercises.length} exercise
-                  {exercises.length !== 1 ? "s" : ""})
+                  Save Workout ({selectedExercises.length} exercise
+                  {selectedExercises.length !== 1 ? "s" : ""})
                 </Text>
               </>
             )}
@@ -504,9 +692,9 @@ const styles = StyleSheet.create({
   workoutTypeCard: {
     backgroundColor: "white",
     borderRadius: 12,
-    padding: 16, // 🔥 UPDATED: Increased padding from 12 to 16 for better spacing in 2x2 grid
+    padding: 16,
     alignItems: "center",
-    flex: 0.48, // 🔥 UPDATED: Changed from 0.31 to 0.48 for 2-column layout (48% each with gap)
+    flex: 0.48,
     borderWidth: 1,
     borderColor: "#e9ecef",
     shadowColor: "#000",
@@ -525,17 +713,17 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   workoutTypeName: {
-    fontSize: 14, // 🔥 UPDATED: Increased from 12 to 14 for better readability in larger cards
+    fontSize: 14,
     fontWeight: "600",
     textAlign: "center",
     color: "#1a1a1a",
-    marginBottom: 4, // 🔥 UPDATED: Increased from 2 to 4 for better spacing
+    marginBottom: 4,
   },
   workoutTypeDescription: {
-    fontSize: 12, // 🔥 UPDATED: Increased from 10 to 12 for better readability
+    fontSize: 12,
     color: "#666",
     textAlign: "center",
-    lineHeight: 14, // 🔥 UPDATED: Adjusted line height
+    lineHeight: 14,
   },
   selectedIndicator: {
     position: "absolute",
@@ -547,41 +735,48 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
+  // 🔥 NEW: Styles for muscle group sections and exercise strips
+  muscleGroupSection: {
+    marginBottom: 20,
+  },
+  muscleGroupTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 12,
+    paddingLeft: 4,
+  },
+  exerciseStripsContainer: {
+    paddingRight: 20, // Extra padding for last item
+  },
+  exerciseStrip: {
+    backgroundColor: "white",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: "#e9ecef",
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  exerciseStripText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#1a1a1a",
+  },
+  exerciseStripCheck: {
+    marginLeft: 6,
+  },
   exercisesHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
-  },
-  addExerciseButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  addExerciseText: {
-    color: "white",
-    fontSize: 14,
-    fontWeight: "600",
-    marginLeft: 4,
-  },
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 40,
-  },
-  emptyStateText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1a1a1a",
-    marginTop: 12,
-  },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: "#666",
-    textAlign: "center",
-    marginTop: 8,
   },
   exerciseCard: {
     backgroundColor: "white",
@@ -645,6 +840,7 @@ const styles = StyleSheet.create({
   },
   formRow: {
     marginBottom: 16,
+    flexDirection: "row",
   },
   formColumn: {
     flex: 1,
