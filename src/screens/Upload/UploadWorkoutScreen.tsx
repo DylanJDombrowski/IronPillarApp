@@ -40,13 +40,21 @@ interface WorkoutType {
   description: string;
 }
 
+// 🔥 UPDATED: Changed from 6 workout types to 4 types in 2x2 layout
 const workoutTypes: WorkoutType[] = [
   {
-    id: "strength",
-    name: "Strength Training",
+    id: "upper_body",
+    name: "Upper Body",
     icon: "barbell",
     color: "#007AFF",
-    description: "Build muscle and power",
+    description: "Arms, chest, back & shoulders",
+  },
+  {
+    id: "lower_body",
+    name: "Lower Body",
+    icon: "walk",
+    color: "#FF9500",
+    description: "Legs, glutes & core",
   },
   {
     id: "cardio",
@@ -54,27 +62,6 @@ const workoutTypes: WorkoutType[] = [
     icon: "heart",
     color: "#FF3B30",
     description: "Improve cardiovascular health",
-  },
-  {
-    id: "flexibility",
-    name: "Flexibility",
-    icon: "body",
-    color: "#30D158",
-    description: "Increase mobility and range",
-  },
-  {
-    id: "sports",
-    name: "Sports",
-    icon: "football",
-    color: "#FF9500",
-    description: "Sport-specific training",
-  },
-  {
-    id: "crosstraining",
-    name: "Cross Training",
-    icon: "fitness",
-    color: "#AF52DE",
-    description: "Mixed training methods",
   },
   {
     id: "other",
@@ -275,98 +262,98 @@ export default function UploadWorkoutScreen({ navigation }: any) {
             <View
               style={[
                 styles.exerciseNumber,
-                { backgroundColor: selectedType?.color || "#007AFF" },
+                { backgroundColor: selectedType?.color },
               ]}
             >
               <Text style={styles.exerciseNumberText}>{index + 1}</Text>
             </View>
-            <View style={styles.exerciseHeaderInfo}>
-              <Text style={styles.exerciseHeaderTitle}>
-                Exercise {index + 1}
+            <View style={styles.exerciseInfo}>
+              <Text style={styles.exerciseName}>
+                {item.name || `Exercise ${index + 1}`}
               </Text>
-              <Text style={styles.exercisePreview}>
-                {item.sets} sets × {item.reps} reps{" "}
-                {item.weight > 0 && `@ ${item.weight}lbs`}
+              <Text style={styles.exerciseDetails}>
+                {item.sets} sets × {item.reps} reps
+                {item.weight > 0 && ` @ ${item.weight}lbs`}
               </Text>
             </View>
           </View>
-
-          <View style={styles.exerciseHeaderRight}>
-            <TouchableOpacity
-              onPress={() => removeExercise(index)}
-              style={styles.removeButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="close-circle" size={20} color="#FF3B30" />
-            </TouchableOpacity>
-            <Ionicons
-              name={isExpanded ? "chevron-up" : "chevron-down"}
-              size={20}
-              color="#666"
-            />
-          </View>
+          <Ionicons
+            name={isExpanded ? "chevron-up" : "chevron-down"}
+            size={20}
+            color="#666"
+          />
         </TouchableOpacity>
 
         {isExpanded && (
-          <View style={styles.exerciseDetails}>
-            <View style={styles.exerciseInputsRow}>
-              <View style={styles.inputGroup}>
+          <View style={styles.exerciseForm}>
+            <View style={styles.formRow}>
+              <Text style={styles.inputLabel}>Exercise Name</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="e.g., Push-ups, Squats"
+                value={item.name}
+                onChangeText={(value) => updateExercise(index, "name", value)}
+              />
+            </View>
+
+            <View style={styles.formRow}>
+              <View style={styles.formColumn}>
                 <Text style={styles.inputLabel}>Sets</Text>
                 <TextInput
                   style={styles.numberInput}
-                  value={item.sets.toString()}
-                  onChangeText={(text) =>
-                    updateExercise(
-                      index,
-                      "sets",
-                      Math.max(1, parseInt(text) || 1)
-                    )
-                  }
+                  placeholder="3"
                   keyboardType="numeric"
+                  value={item.sets?.toString()}
+                  onChangeText={(value) =>
+                    updateExercise(index, "sets", parseInt(value) || 0)
+                  }
                 />
               </View>
-
-              <View style={styles.inputGroup}>
+              <View style={styles.formColumn}>
                 <Text style={styles.inputLabel}>Reps</Text>
                 <TextInput
                   style={styles.numberInput}
-                  value={item.reps.toString()}
-                  onChangeText={(text) =>
-                    updateExercise(
-                      index,
-                      "reps",
-                      Math.max(1, parseInt(text) || 1)
-                    )
-                  }
+                  placeholder="10"
                   keyboardType="numeric"
+                  value={item.reps?.toString()}
+                  onChangeText={(value) =>
+                    updateExercise(index, "reps", parseInt(value) || 0)
+                  }
                 />
               </View>
-
-              <View style={styles.inputGroup}>
+              <View style={styles.formColumn}>
                 <Text style={styles.inputLabel}>Weight (lbs)</Text>
                 <TextInput
                   style={styles.numberInput}
-                  value={item.weight.toString()}
-                  onChangeText={(text) =>
-                    updateExercise(
-                      index,
-                      "weight",
-                      Math.max(0, parseFloat(text) || 0)
-                    )
-                  }
+                  placeholder="0"
                   keyboardType="numeric"
+                  value={item.weight?.toString()}
+                  onChangeText={(value) =>
+                    updateExercise(index, "weight", parseFloat(value) || 0)
+                  }
                 />
               </View>
             </View>
 
-            <TextInput
-              style={styles.notesInput}
-              placeholder="Notes (optional) - e.g., 'Focus on form', 'Increase weight next time'"
-              value={item.notes}
-              onChangeText={(text) => updateExercise(index, "notes", text)}
-              multiline
-              maxLength={200}
-            />
+            <View style={styles.formRow}>
+              <Text style={styles.inputLabel}>Notes (Optional)</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Rest time, form cues, etc."
+                value={item.notes}
+                onChangeText={(value) => updateExercise(index, "notes", value)}
+                multiline
+              />
+            </View>
+
+            <TouchableOpacity
+              style={styles.removeButton}
+              onPress={() => removeExercise(index)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="trash-outline" size={16} color="#FF3B30" />
+              <Text style={styles.removeButtonText}>Remove Exercise</Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -380,28 +367,27 @@ export default function UploadWorkoutScreen({ navigation }: any) {
       <ScrollView
         style={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }}
       >
         {/* Workout Name Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Workout Name</Text>
           <TextInput
             style={styles.workoutNameInput}
-            placeholder="Enter workout name (e.g., 'Push Day', 'Morning Run')"
+            placeholder="Enter workout name..."
             value={workoutName}
             onChangeText={setWorkoutName}
-            maxLength={50}
           />
         </View>
 
-        {/* Workout Type Section - Compact */}
+        {/* Workout Type Selection */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Choose Workout Type</Text>
+          <Text style={styles.sectionTitle}>Select Workout Type</Text>
+          {/* 🔥 UPDATED: Changed numColumns from 3 to 2 for 2x2 grid */}
           <FlatList
             data={workoutTypes}
             renderItem={renderWorkoutType}
             keyExtractor={(item) => item.id}
-            numColumns={3}
+            numColumns={2}
             columnWrapperStyle={styles.workoutTypeRow}
             scrollEnabled={false}
           />
@@ -538,9 +524,9 @@ const styles = StyleSheet.create({
   workoutTypeCard: {
     backgroundColor: "white",
     borderRadius: 12,
-    padding: 12,
+    padding: 16, // 🔥 UPDATED: Increased padding from 12 to 16 for better spacing in 2x2 grid
     alignItems: "center",
-    flex: 0.31,
+    flex: 0.48, // 🔥 UPDATED: Changed from 0.31 to 0.48 for 2-column layout (48% each with gap)
     borderWidth: 1,
     borderColor: "#e9ecef",
     shadowColor: "#000",
@@ -559,17 +545,17 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   workoutTypeName: {
-    fontSize: 12,
+    fontSize: 14, // 🔥 UPDATED: Increased from 12 to 14 for better readability in larger cards
     fontWeight: "600",
     textAlign: "center",
     color: "#1a1a1a",
-    marginBottom: 2,
+    marginBottom: 4, // 🔥 UPDATED: Increased from 2 to 4 for better spacing
   },
   workoutTypeDescription: {
-    fontSize: 10,
+    fontSize: 12, // 🔥 UPDATED: Increased from 10 to 12 for better readability
     color: "#666",
     textAlign: "center",
-    lineHeight: 12,
+    lineHeight: 14, // 🔥 UPDATED: Adjusted line height
   },
   selectedIndicator: {
     position: "absolute",
@@ -588,15 +574,9 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginBottom: 16,
     paddingVertical: 8,
-    paddingHorizontal: 16,
-    backgroundColor: "white",
-    borderRadius: 20,
+    paddingHorizontal: 12,
+    borderRadius: 8,
     borderWidth: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
   },
   selectedTypeText: {
     marginLeft: 6,
@@ -612,36 +592,54 @@ const styles = StyleSheet.create({
   addExerciseButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
   addExerciseText: {
     color: "white",
     fontSize: 14,
     fontWeight: "600",
+    marginLeft: 4,
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1a1a1a",
+    marginTop: 12,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    marginTop: 8,
   },
   exerciseCard: {
     backgroundColor: "white",
-    borderRadius: 16,
+    borderRadius: 12,
+    padding: 16,
     borderWidth: 1,
     borderColor: "#e9ecef",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-    overflow: "hidden",
+    shadowRadius: 2,
+    elevation: 1,
   },
   exerciseCardExpanded: {
-    borderColor: "#007AFF",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   exerciseHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 16,
   },
   exerciseHeaderLeft: {
     flexDirection: "row",
@@ -658,126 +656,83 @@ const styles = StyleSheet.create({
   },
   exerciseNumberText: {
     color: "white",
-    fontWeight: "700",
     fontSize: 14,
+    fontWeight: "600",
   },
-  exerciseHeaderInfo: {
+  exerciseInfo: {
     flex: 1,
   },
-  exerciseHeaderTitle: {
+  exerciseName: {
     fontSize: 16,
     fontWeight: "600",
     color: "#1a1a1a",
     marginBottom: 2,
   },
-  exercisePreview: {
+  exerciseDetails: {
     fontSize: 14,
     color: "#666",
   },
-  exerciseHeaderRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  removeButton: {
-    padding: 4,
-  },
-  exerciseDetails: {
-    padding: 16,
-    paddingTop: 0,
+  exerciseForm: {
+    marginTop: 16,
+    paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: "#f0f0f0",
   },
-  exerciseNameInput: {
-    backgroundColor: "#f8f9fa",
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
+  formRow: {
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#e9ecef",
   },
-  exerciseInputsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 16,
-    gap: 12,
-  },
-  inputGroup: {
+  formColumn: {
     flex: 1,
+    marginHorizontal: 4,
   },
   inputLabel: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "600",
-    color: "#666",
-    marginBottom: 6,
+    color: "#1a1a1a",
+    marginBottom: 8,
+  },
+  textInput: {
+    backgroundColor: "#f8f9fa",
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: "#e9ecef",
   },
   numberInput: {
     backgroundColor: "#f8f9fa",
-    borderRadius: 10,
-    padding: 14,
+    borderRadius: 8,
+    padding: 12,
     fontSize: 16,
+    borderWidth: 1,
+    borderColor: "#e9ecef",
     textAlign: "center",
-    borderWidth: 1,
-    borderColor: "#e9ecef",
-    fontWeight: "600",
   },
-  notesInput: {
-    backgroundColor: "#f8f9fa",
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 14,
-    minHeight: 80,
-    borderWidth: 1,
-    borderColor: "#e9ecef",
-    textAlignVertical: "top",
-  },
-  emptyState: {
+  removeButton: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 40,
-    paddingHorizontal: 20,
+    justifyContent: "center",
+    paddingVertical: 8,
+    marginTop: 8,
   },
-  emptyStateText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#666",
-    marginTop: 12,
-  },
-  emptyStateSubtext: {
+  removeButtonText: {
+    color: "#FF3B30",
     fontSize: 14,
-    color: "#999",
-    marginTop: 6,
-    textAlign: "center",
-    lineHeight: 20,
+    fontWeight: "600",
+    marginLeft: 6,
   },
   bottomContainer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "white",
     padding: 20,
-    paddingBottom: 30,
+    backgroundColor: "white",
     borderTopWidth: 1,
     borderTopColor: "#e9ecef",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
   },
   saveButton: {
     flexDirection: "row",
-    justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 18,
-    borderRadius: 16,
-    gap: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    justifyContent: "center",
+    paddingVertical: 16,
+    borderRadius: 12,
   },
   saveButtonDisabled: {
     opacity: 0.6,
@@ -785,6 +740,7 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: "white",
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "600",
+    marginLeft: 8,
   },
 });
