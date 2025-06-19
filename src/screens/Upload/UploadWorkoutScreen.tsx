@@ -393,26 +393,6 @@ export default function UploadWorkoutScreen({ navigation }: any) {
           />
         </View>
 
-        {selectedWorkoutType && (
-          <View
-            style={[
-              styles.selectedTypeIndicator,
-              { borderColor: selectedType?.color },
-            ]}
-          >
-            <Ionicons
-              name="checkmark-circle"
-              size={16}
-              color={selectedType?.color}
-            />
-            <Text
-              style={[styles.selectedTypeText, { color: selectedType?.color }]}
-            >
-              {selectedType?.name}
-            </Text>
-          </View>
-        )}
-
         {/* Exercises Section - Always visible when workout type is selected */}
         {selectedWorkoutType && (
           <View style={styles.section}>
@@ -567,22 +547,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  selectedTypeIndicator: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginHorizontal: 20,
-    marginBottom: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  selectedTypeText: {
-    marginLeft: 6,
-    fontSize: 14,
-    fontWeight: "600",
-  },
+
   exercisesHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
