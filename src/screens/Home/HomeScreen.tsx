@@ -22,18 +22,42 @@ interface FriendWorkout {
   user_liked: boolean;
 }
 
+interface MyWorkout {
+  id: string;
+  name: string;
+  type: string;
+  completed_at: string;
+  exercises_count: number;
+  duration_minutes: number;
+}
+
 interface HomeScreenProps {
   navigation: any;
 }
 
 export default function HomeScreen({ navigation }: HomeScreenProps) {
+  const [activeTab, setActiveTab] = useState<"friends" | "my_workouts">(
+    "friends"
+  );
   const [friendWorkouts, setFriendWorkouts] = useState<FriendWorkout[]>([]);
+  const [myWorkouts, setMyWorkouts] = useState<MyWorkout[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    loadFriendWorkouts();
+    loadData();
   }, []);
+
+  const loadData = async () => {
+    try {
+      await Promise.all([loadFriendWorkouts(), loadMyWorkouts()]);
+    } catch (error) {
+      console.error("Error loading data:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   const loadFriendWorkouts = async () => {
     try {
@@ -67,15 +91,23 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       setFriendWorkouts(mockData);
     } catch (error) {
       console.error("Error loading friend workouts:", error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+    }
+  };
+
+  const loadMyWorkouts = async () => {
+    try {
+      // TODO: Load user's completed workouts from database
+      // For now, empty array since we're not implementing the functionality yet
+      const mockData: MyWorkout[] = [];
+      setMyWorkouts(mockData);
+    } catch (error) {
+      console.error("Error loading my workouts:", error);
     }
   };
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadFriendWorkouts();
+    loadData();
   };
 
   const handleLike = async (workoutId: string) => {
@@ -112,7 +144,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     }
   };
 
-  const renderWorkoutCard = ({ item }: { item: FriendWorkout }) => (
+  const renderFriendWorkoutCard = ({ item }: { item: FriendWorkout }) => (
     <View style={styles.workoutCard}>
       {/* User Info Header */}
       <View style={styles.userHeader}>
@@ -184,23 +216,66 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     </View>
   );
 
-  const renderEmptyState = () => (
+  const renderMyWorkoutCard = ({ item }: { item: MyWorkout }) => (
+    <View style={styles.workoutCard}>
+      <View style={styles.myWorkoutHeader}>
+        <Text style={styles.myWorkoutName}>{item.name}</Text>
+        <Text style={styles.myWorkoutType}>
+          {item.type.replace("_", " ").toUpperCase()}
+        </Text>
+      </View>
+
+      <View style={styles.workoutStats}>
+        <View style={styles.statItem}>
+          <Ionicons name="barbell-outline" size={16} color="#007AFF" />
+          <Text style={styles.statText}>{item.exercises_count} exercises</Text>
+        </View>
+
+        <View style={styles.statItem}>
+          <Ionicons name="time-outline" size={16} color="#007AFF" />
+          <Text style={styles.statText}>{item.duration_minutes} min</Text>
+        </View>
+
+        <View style={styles.statItem}>
+          <Ionicons name="calendar-outline" size={16} color="#007AFF" />
+          <Text style={styles.statText}>
+            {formatTimeAgo(item.completed_at)}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderFriendsEmptyState = () => (
     <View style={styles.emptyState}>
       <Ionicons name="people-outline" size={64} color="#ccc" />
       <Text style={styles.emptyTitle}>No friend workouts yet</Text>
       <Text style={styles.emptySubtitle}>
         Add friends to see their workout activity here!
       </Text>
-      <TouchableOpacity style={styles.findFriendsButton}>
+      <TouchableOpacity
+        style={styles.findFriendsButton}
+        onPress={() => navigation.navigate("SearchUsers")}
+      >
         <Text style={styles.findFriendsText}>Find Friends</Text>
       </TouchableOpacity>
+    </View>
+  );
+
+  const renderMyWorkoutsEmptyState = () => (
+    <View style={styles.emptyState}>
+      <Ionicons name="barbell-outline" size={64} color="#ccc" />
+      <Text style={styles.emptyTitle}>No completed workouts</Text>
+      <Text style={styles.emptySubtitle}>
+        Complete your first workout to see it here!
+      </Text>
     </View>
   );
 
   if (loading) {
     return (
       <View style={styles.centerContainer}>
-        <Text>Loading feed...</Text>
+        <Text>Loading...</Text>
       </View>
     );
   }
@@ -218,13 +293,58 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         </TouchableOpacity>
       </View>
 
-      {/* Friend Workouts Feed */}
-      {friendWorkouts.length === 0 ? (
-        renderEmptyState()
+      {/* 🔥 NEW: Tab Navigation */}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "friends" && styles.activeTab]}
+          onPress={() => setActiveTab("friends")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "friends" && styles.activeTabText,
+            ]}
+          >
+            Friends
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "my_workouts" && styles.activeTab]}
+          onPress={() => setActiveTab("my_workouts")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "my_workouts" && styles.activeTabText,
+            ]}
+          >
+            My Workouts
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Content based on active tab */}
+      {activeTab === "friends" ? (
+        friendWorkouts.length === 0 ? (
+          renderFriendsEmptyState()
+        ) : (
+          <FlatList
+            data={friendWorkouts}
+            renderItem={renderFriendWorkoutCard}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContainer}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+            showsVerticalScrollIndicator={false}
+          />
+        )
+      ) : myWorkouts.length === 0 ? (
+        renderMyWorkoutsEmptyState()
       ) : (
         <FlatList
-          data={friendWorkouts}
-          renderItem={renderWorkoutCard}
+          data={myWorkouts}
+          renderItem={renderMyWorkoutCard}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}
           refreshControl={
@@ -264,6 +384,31 @@ const styles = StyleSheet.create({
   },
   searchButton: {
     padding: 8,
+  },
+  // 🔥 NEW: Tab styles
+  tabContainer: {
+    flexDirection: "row",
+    backgroundColor: "white",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e9ecef",
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 16,
+    alignItems: "center",
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
+  activeTab: {
+    borderBottomColor: "#007AFF",
+  },
+  tabText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#666",
+  },
+  activeTabText: {
+    color: "#007AFF",
   },
   listContainer: {
     padding: 20,
@@ -330,6 +475,28 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#1a1a1a",
     marginBottom: 12,
+  },
+  // 🔥 NEW: My Workouts specific styles
+  myWorkoutHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  myWorkoutName: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1a1a1a",
+    flex: 1,
+  },
+  myWorkoutType: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#007AFF",
+    backgroundColor: "#e3f2fd",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   workoutStats: {
     flexDirection: "row",
