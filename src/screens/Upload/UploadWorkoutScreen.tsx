@@ -26,10 +26,14 @@ if (
 
 interface Exercise {
   name: string;
-  sets: number;
+  sets: ExerciseSet[];
+  notes?: string;
+}
+
+interface ExerciseSet {
+  setNumber: number;
   reps: number;
   weight: number;
-  notes?: string;
 }
 
 interface PredefinedExercise {
@@ -237,14 +241,12 @@ export default function UploadWorkoutScreen({ navigation }: any) {
         setExpandedExercise(exercise.id);
       }
     } else {
-      // Add new exercise with default values
+      // Add new exercise with default values - start with one set
       const newExercise: SelectedExercise = {
         id: exercise.id,
         name: exercise.name,
         muscleGroup: exercise.muscleGroup,
-        sets: 3,
-        reps: 10,
-        weight: 0,
+        sets: [{ setNumber: 1, reps: 10, weight: 0 }],
         notes: "",
       };
 
@@ -254,14 +256,63 @@ export default function UploadWorkoutScreen({ navigation }: any) {
     }
   };
 
-  const updateExercise = (
+  const updateExerciseSet = (
     exerciseId: string,
-    field: keyof Exercise,
+    setIndex: number,
+    field: keyof ExerciseSet,
     value: any
   ) => {
+    const updatedExercises = selectedExercises.map((ex) => {
+      if (ex.id === exerciseId) {
+        const updatedSets = [...ex.sets];
+        updatedSets[setIndex] = { ...updatedSets[setIndex], [field]: value };
+        return { ...ex, sets: updatedSets };
+      }
+      return ex;
+    });
+    setSelectedExercises(updatedExercises);
+  };
+
+  const updateExerciseNotes = (exerciseId: string, notes: string) => {
     const updatedExercises = selectedExercises.map((ex) =>
-      ex.id === exerciseId ? { ...ex, [field]: value } : ex
+      ex.id === exerciseId ? { ...ex, notes } : ex
     );
+    setSelectedExercises(updatedExercises);
+  };
+
+  const addSetToExercise = (exerciseId: string) => {
+    const updatedExercises = selectedExercises.map((ex) => {
+      if (ex.id === exerciseId) {
+        const newSetNumber = ex.sets.length + 1;
+        const newSet: ExerciseSet = {
+          setNumber: newSetNumber,
+          reps: 10,
+          weight: 0,
+        };
+        return { ...ex, sets: [...ex.sets, newSet] };
+      }
+      return ex;
+    });
+
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setSelectedExercises(updatedExercises);
+  };
+
+  const removeSetFromExercise = (exerciseId: string, setIndex: number) => {
+    const updatedExercises = selectedExercises.map((ex) => {
+      if (ex.id === exerciseId && ex.sets.length > 1) {
+        const updatedSets = ex.sets.filter((_, index) => index !== setIndex);
+        // Renumber the sets
+        const renumberedSets = updatedSets.map((set, index) => ({
+          ...set,
+          setNumber: index + 1,
+        }));
+        return { ...ex, sets: renumberedSets };
+      }
+      return ex;
+    });
+
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setSelectedExercises(updatedExercises);
   };
 
@@ -481,8 +532,9 @@ export default function UploadWorkoutScreen({ navigation }: any) {
             <View style={styles.exerciseInfo}>
               <Text style={styles.exerciseName}>{item.name}</Text>
               <Text style={styles.exerciseDetails}>
-                {item.sets} sets × {item.reps} reps
-                {item.weight > 0 && ` @ ${item.weight}lbs`}
+                {item.sets.length} set{item.sets.length !== 1 ? "s" : ""} ×{" "}
+                {item.sets[0]?.reps || 0} reps
+                {item.sets[0]?.weight > 0 && ` @ ${item.sets[0]?.weight}lbs`}
               </Text>
             </View>
           </View>
@@ -495,58 +547,93 @@ export default function UploadWorkoutScreen({ navigation }: any) {
 
         {isExpanded && (
           <View style={styles.exerciseForm}>
-            <View style={styles.formRow}>
-              <View style={styles.formColumn}>
-                <Text style={styles.inputLabel}>Sets</Text>
-                <TextInput
-                  style={styles.numberInput}
-                  placeholder="3"
-                  keyboardType="numeric"
-                  value={item.sets?.toString()}
-                  onChangeText={(value) =>
-                    updateExercise(item.id, "sets", parseInt(value) || 0)
-                  }
-                />
-              </View>
-              <View style={styles.formColumn}>
-                <Text style={styles.inputLabel}>Reps</Text>
-                <TextInput
-                  style={styles.numberInput}
-                  placeholder="10"
-                  keyboardType="numeric"
-                  value={item.reps?.toString()}
-                  onChangeText={(value) =>
-                    updateExercise(item.id, "reps", parseInt(value) || 0)
-                  }
-                />
-              </View>
-              <View style={styles.formColumn}>
-                <Text style={styles.inputLabel}>Weight (lbs)</Text>
-                <TextInput
-                  style={styles.numberInput}
-                  placeholder="0"
-                  keyboardType="numeric"
-                  value={item.weight?.toString()}
-                  onChangeText={(value) =>
-                    updateExercise(item.id, "weight", parseFloat(value) || 0)
-                  }
-                />
-              </View>
+            {/* Sets Section with Add Button */}
+            <View style={styles.setsHeader}>
+              <Text style={styles.setsTitle}>Sets</Text>
+              <TouchableOpacity
+                style={[
+                  styles.addSetButton,
+                  { backgroundColor: selectedType?.color },
+                ]}
+                onPress={() => addSetToExercise(item.id)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add" size={16} color="white" />
+              </TouchableOpacity>
             </View>
 
+            {/* Individual Set Entries */}
+            {item.sets.map((set, setIndex) => (
+              <View key={setIndex} style={styles.setRow}>
+                <View style={styles.setNumberContainer}>
+                  <Text style={styles.setLabel}>Set</Text>
+                  <View style={styles.setNumberInput}>
+                    <Text style={styles.setNumberText}>{set.setNumber}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.setInputContainer}>
+                  <Text style={styles.inputLabel}>Reps</Text>
+                  <TextInput
+                    style={styles.numberInput}
+                    placeholder="10"
+                    keyboardType="numeric"
+                    value={set.reps?.toString()}
+                    onChangeText={(value) =>
+                      updateExerciseSet(
+                        item.id,
+                        setIndex,
+                        "reps",
+                        parseInt(value) || 0
+                      )
+                    }
+                  />
+                </View>
+
+                <View style={styles.setInputContainer}>
+                  <Text style={styles.inputLabel}>Weight (lbs)</Text>
+                  <TextInput
+                    style={styles.numberInput}
+                    placeholder="0"
+                    keyboardType="numeric"
+                    value={set.weight?.toString()}
+                    onChangeText={(value) =>
+                      updateExerciseSet(
+                        item.id,
+                        setIndex,
+                        "weight",
+                        parseFloat(value) || 0
+                      )
+                    }
+                  />
+                </View>
+
+                {/* Remove Set Button (only show if more than 1 set) */}
+                {item.sets.length > 1 && (
+                  <TouchableOpacity
+                    style={styles.removeSetButton}
+                    onPress={() => removeSetFromExercise(item.id, setIndex)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="remove-circle" size={20} color="#FF3B30" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+
+            {/* Notes Section */}
             <View style={styles.formRow}>
               <Text style={styles.inputLabel}>Notes (Optional)</Text>
               <TextInput
                 style={styles.textInput}
                 placeholder="Rest time, form cues, etc."
                 value={item.notes}
-                onChangeText={(value) =>
-                  updateExercise(item.id, "notes", value)
-                }
+                onChangeText={(value) => updateExerciseNotes(item.id, value)}
                 multiline
               />
             </View>
 
+            {/* Remove Exercise Button */}
             <TouchableOpacity
               style={styles.removeButton}
               onPress={() => removeExercise(item.id)}
@@ -838,9 +925,68 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#f0f0f0",
   },
+  // 🔥 NEW: Sets section styles
+  setsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  setsTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1a1a1a",
+  },
+  addSetButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  setRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: "#f8f9fa",
+    borderRadius: 8,
+  },
+  setNumberContainer: {
+    alignItems: "center",
+    marginRight: 12,
+  },
+  setLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#666",
+    marginBottom: 4,
+  },
+  setNumberInput: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: "white",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e9ecef",
+  },
+  setNumberText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1a1a1a",
+  },
+  setInputContainer: {
+    flex: 1,
+    marginHorizontal: 6,
+  },
+  removeSetButton: {
+    marginLeft: 8,
+  },
   formRow: {
     marginBottom: 16,
-    flexDirection: "row",
   },
   formColumn: {
     flex: 1,
