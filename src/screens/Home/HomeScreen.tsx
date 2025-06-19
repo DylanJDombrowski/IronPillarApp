@@ -33,9 +33,10 @@ interface MyWorkout {
 
 interface HomeScreenProps {
   navigation: any;
+  route: any; // Added for navigation params
 }
 
-export default function HomeScreen({ navigation }: HomeScreenProps) {
+export default function HomeScreen({ navigation, route }: HomeScreenProps) {
   const [activeTab, setActiveTab] = useState<"friends" | "my_workouts">(
     "friends"
   );
@@ -47,6 +48,13 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Handle navigation parameters to switch tabs
+  useEffect(() => {
+    if (route.params?.activeTab) {
+      setActiveTab(route.params.activeTab);
+    }
+  }, [route.params]);
 
   const loadData = async () => {
     try {
@@ -96,12 +104,67 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 
   const loadMyWorkouts = async () => {
     try {
-      // TODO: Load user's completed workouts from database
-      // For now, empty array since we're not implementing the functionality yet
-      const mockData: MyWorkout[] = [];
-      setMyWorkouts(mockData);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        console.log("No user found");
+        setMyWorkouts([]);
+        return;
+      }
+
+      // Load user's created workouts from the workouts table
+      const { data: workouts, error } = await supabase
+        .from("workouts")
+        .select(
+          `
+          id,
+          name,
+          description,
+          created_at,
+          workout_exercises (
+            id,
+            exercise:exercises (
+              name,
+              muscle_groups
+            )
+          )
+        `
+        )
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error loading workouts:", error);
+        throw error;
+      }
+
+      // Transform the data to match the MyWorkout interface
+      const transformedWorkouts: MyWorkout[] =
+        workouts?.map((workout) => ({
+          id: workout.id,
+          name: workout.name,
+          type: workout.description?.includes("upper")
+            ? "upper_body"
+            : workout.description?.includes("lower")
+            ? "lower_body"
+            : workout.description?.includes("cardio")
+            ? "cardio"
+            : "other",
+          completed_at: workout.created_at, // Using created_at since these are saved workouts, not completed ones
+          exercises_count: workout.workout_exercises?.length || 0,
+          duration_minutes: Math.max(
+            30,
+            (workout.workout_exercises?.length || 0) * 10
+          ), // Estimated duration
+        })) || [];
+
+      console.log("Loaded workouts:", transformedWorkouts);
+      setMyWorkouts(transformedWorkouts);
     } catch (error) {
       console.error("Error loading my workouts:", error);
+      setMyWorkouts([]); // Set empty array on error
     }
   };
 
@@ -129,33 +192,21 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 
   const formatTimeAgo = (dateString: string) => {
     const now = new Date();
-    const workoutTime = new Date(dateString);
-    const diffInHours = Math.floor(
-      (now.getTime() - workoutTime.getTime()) / (1000 * 60 * 60)
-    );
+    const date = new Date(dateString);
+    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
 
-    if (diffInHours < 1) {
-      return "Just now";
-    } else if (diffInHours < 24) {
-      return `${diffInHours}h ago`;
-    } else {
-      const diffInDays = Math.floor(diffInHours / 24);
-      return `${diffInDays}d ago`;
-    }
+    if (diffInHours < 1) return "Just now";
+    if (diffInHours < 24) return `${Math.floor(diffInHours)}h ago`;
+    return `${Math.floor(diffInHours / 24)}d ago`;
   };
 
   const renderFriendWorkoutCard = ({ item }: { item: FriendWorkout }) => (
     <View style={styles.workoutCard}>
-      {/* User Info Header */}
       <View style={styles.userHeader}>
         <View style={styles.userInfo}>
           <View style={styles.avatarPlaceholder}>
             <Text style={styles.avatarText}>
-              {item.user_name
-                .split(" ")
-                .map((n) => n[0])
-                .join("")
-                .toUpperCase()}
+              {item.user_name.charAt(0).toUpperCase()}
             </Text>
           </View>
           <View style={styles.userDetails}>
@@ -166,10 +217,8 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         <Text style={styles.timeAgo}>{formatTimeAgo(item.completed_at)}</Text>
       </View>
 
-      {/* Workout Info */}
       <View style={styles.workoutContent}>
-        <Text style={styles.workoutTitle}>Completed "{item.workout_name}"</Text>
-
+        <Text style={styles.workoutTitle}>{item.workout_name}</Text>
         <View style={styles.workoutStats}>
           <View style={styles.statItem}>
             <Ionicons name="barbell-outline" size={16} color="#007AFF" />
@@ -177,7 +226,6 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
               {item.exercises_count} exercises
             </Text>
           </View>
-
           <View style={styles.statItem}>
             <Ionicons name="time-outline" size={16} color="#007AFF" />
             <Text style={styles.statText}>{item.duration_minutes} min</Text>
@@ -185,7 +233,6 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         </View>
       </View>
 
-      {/* Actions */}
       <View style={styles.actions}>
         <TouchableOpacity
           style={[styles.actionButton, item.user_liked && styles.likedButton]}
@@ -265,10 +312,16 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   const renderMyWorkoutsEmptyState = () => (
     <View style={styles.emptyState}>
       <Ionicons name="barbell-outline" size={64} color="#ccc" />
-      <Text style={styles.emptyTitle}>No completed workouts</Text>
+      <Text style={styles.emptyTitle}>No saved workouts</Text>
       <Text style={styles.emptySubtitle}>
-        Complete your first workout to see it here!
+        Create your first workout to see it here!
       </Text>
+      <TouchableOpacity
+        style={styles.findFriendsButton}
+        onPress={() => navigation.navigate("Upload")}
+      >
+        <Text style={styles.findFriendsText}>Create Workout</Text>
+      </TouchableOpacity>
     </View>
   );
 
@@ -293,7 +346,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         </TouchableOpacity>
       </View>
 
-      {/* 🔥 NEW: Tab Navigation */}
+      {/* Tab Navigation */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[styles.tab, activeTab === "friends" && styles.activeTab]}
@@ -385,7 +438,7 @@ const styles = StyleSheet.create({
   searchButton: {
     padding: 8,
   },
-  // 🔥 NEW: Tab styles
+  // Tab styles
   tabContainer: {
     flexDirection: "row",
     backgroundColor: "white",
@@ -476,7 +529,7 @@ const styles = StyleSheet.create({
     color: "#1a1a1a",
     marginBottom: 12,
   },
-  // 🔥 NEW: My Workouts specific styles
+  // My Workouts specific styles
   myWorkoutHeader: {
     flexDirection: "row",
     justifyContent: "space-between",

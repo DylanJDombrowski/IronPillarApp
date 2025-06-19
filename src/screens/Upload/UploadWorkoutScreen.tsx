@@ -360,33 +360,110 @@ export default function UploadWorkoutScreen({ navigation }: any) {
 
       if (!user) {
         Alert.alert("Error", "You must be logged in to save workouts");
+        setIsLoading(false);
         return;
       }
 
-      // Create the workout
+      // Step 1: Create or find exercises in the exercises table
+      const exerciseIds: string[] = [];
+
+      for (const exercise of selectedExercises) {
+        // Check if exercise already exists
+        const { data: existingExercise, error: checkError } = await supabase
+          .from("exercises")
+          .select("id")
+          .eq("name", exercise.name)
+          .single();
+
+        if (checkError && checkError.code !== "PGRST116") {
+          throw checkError;
+        }
+
+        if (existingExercise) {
+          // Exercise exists, use its ID
+          exerciseIds.push(existingExercise.id);
+        } else {
+          // Create new exercise
+          const { data: newExercise, error: createExerciseError } =
+            await supabase
+              .from("exercises")
+              .insert({
+                name: exercise.name,
+                description: exercise.notes || null,
+                muscle_groups: [exercise.muscleGroup],
+                equipment: null,
+                instructions: [],
+              })
+              .select("id")
+              .single();
+
+          if (createExerciseError) throw createExerciseError;
+          exerciseIds.push(newExercise.id);
+        }
+      }
+
+      // Step 2: Create the workout in the workouts table
       const { data: workout, error: workoutError } = await supabase
-        .from("user_workouts")
+        .from("workouts")
         .insert({
           user_id: user.id,
-          name: workoutName,
-          type: selectedWorkoutType,
-          exercises: selectedExercises,
-          created_at: new Date().toISOString(),
+          name: workoutName.trim(),
+          description: `${selectedWorkoutType.replace("_", " ")} workout with ${
+            selectedExercises.length
+          } exercises`,
+          is_public: false, // Private by default
         })
-        .select()
+        .select("id")
         .single();
 
       if (workoutError) throw workoutError;
 
+      // Step 3: Create workout exercises in the workout_exercises table
+      const workoutExercises = selectedExercises.map((exercise, index) => ({
+        workout_id: workout.id,
+        exercise_id: exerciseIds[index],
+        sets: exercise.sets.length || 3, // Default to 3 sets if no sets defined
+        reps: exercise.sets[0]?.reps || 10, // Use first set's reps or default to 10
+        rest_seconds: 60, // Default rest time
+        order_index: index,
+        notes: exercise.notes || null,
+      }));
+
+      const { error: exercisesError } = await supabase
+        .from("workout_exercises")
+        .insert(workoutExercises);
+
+      if (exercisesError) throw exercisesError;
+
       Alert.alert("Success! 🎉", "Your workout has been saved successfully!", [
         {
-          text: "OK",
-          onPress: () => navigation.goBack(),
+          text: "View My Workouts",
+          onPress: () => {
+            // Navigate to Home tab and switch to my_workouts tab
+            navigation.navigate("Home", {
+              screen: "HomeFeed",
+              params: { activeTab: "my_workouts" },
+            });
+          },
+        },
+        {
+          text: "Create Another",
+          onPress: () => {
+            // Reset the form
+            setWorkoutName("");
+            setSelectedWorkoutType("");
+            setSelectedExercises([]);
+          },
         },
       ]);
     } catch (error) {
       console.error("Error saving workout:", error);
-      Alert.alert("Error", "Failed to save workout. Please try again.");
+      Alert.alert(
+        "Error",
+        `Failed to save workout: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }. Please try again.`
+      );
     } finally {
       setIsLoading(false);
     }
