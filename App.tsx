@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, TouchableOpacity, View } from "react-native";
 import "react-native-url-polyfill/auto";
+import FriendRequestsScreen from "./src/screens/Profile/FriendRequestScreen";
 
 // Supabase
 import { Session } from "@supabase/supabase-js";
@@ -65,6 +66,23 @@ function WorkoutStack() {
           title: "Workout in Progress",
           headerLeft: () => null, // Prevent going back during workout
         }}
+      />
+    </Stack.Navigator>
+  );
+}
+
+function ProfileStack() {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen
+        name="ProfileMain"
+        component={ProfileScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="FriendRequests"
+        component={FriendRequestsScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );
@@ -214,7 +232,7 @@ function MainTabs() {
         }}
       />
       <Tab.Screen name="History" component={WorkoutHistoryScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen name="Profile" component={ProfileStack} />
     </Tab.Navigator>
   );
 }

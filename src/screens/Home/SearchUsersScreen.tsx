@@ -115,6 +115,170 @@ export default function SearchUsersScreen({
     }
   };
 
+  // 🔍 DEBUG FUNCTION - This will show us what's in the database
+  const debugDatabase = async () => {
+    try {
+      console.log("🔍 DEBUG: Starting database investigation...");
+
+      // 1. Check current user
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      console.log("👤 Current user:", user?.email, user?.id);
+
+      // 2. Check ALL profiles in database
+      const { data: allProfiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("*");
+
+      console.log("📊 ALL profiles in database:", allProfiles);
+      console.log("❌ Profiles error:", profilesError);
+
+      // 3. Check authenticated users (if you have admin access)
+      const { data: authUsers, error: authError } =
+        await supabase.auth.admin.listUsers();
+      console.log(
+        "👥 Auth users:",
+        authUsers?.users?.map((u) => ({ email: u.email, id: u.id }))
+      );
+      console.log("❌ Auth error:", authError);
+
+      // 4. Show results in alert
+      const profileCount = allProfiles?.length || 0;
+      const authCount = authUsers?.users?.length || 0;
+
+      Alert.alert(
+        "Database Debug Results",
+        `Profiles in database: ${profileCount}\n` +
+          `Authenticated users: ${authCount}\n\n` +
+          `Current user: ${user?.email}\n\n` +
+          `Check console for detailed logs.`,
+        [
+          { text: "OK" },
+          {
+            text: "Create Test User",
+            onPress: createTestUser,
+          },
+          {
+            text: "Create Multiple Users",
+            onPress: createMultipleTestUsers,
+          },
+        ]
+      );
+    } catch (error) {
+      console.error("Debug error:", error);
+      Alert.alert("Debug Error", "Check console for details");
+    }
+  };
+
+  // 🧪 Simple UUID generator for React Native
+  const generateUUID = () => {
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
+      /[xy]/g,
+      function (c) {
+        var r = (Math.random() * 16) | 0,
+          v = c == "x" ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      }
+    );
+  };
+
+  // 🧪 CREATE TEST USER FUNCTION
+  const createTestUser = async () => {
+    try {
+      console.log("🧪 Creating test user profile...");
+
+      // Create a test profile manually with proper UUID format
+      const testProfile = {
+        id: generateUUID(), // Proper UUID format
+        username: "testuser",
+        full_name: "Test User",
+        avatar_url: null,
+        friend_count: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .insert(testProfile)
+        .select()
+        .single();
+
+      if (error) {
+        console.error("❌ Error creating test user:", error);
+        Alert.alert("Error", `Failed to create test user: ${error.message}`);
+        return;
+      }
+
+      console.log("✅ Test user created:", data);
+      Alert.alert(
+        "Success",
+        "Test user created! Try searching for 'testuser' or 'Test User' now."
+      );
+    } catch (error) {
+      console.error("Error creating test user:", error);
+      Alert.alert("Error", "Failed to create test user");
+    }
+  };
+
+  // 🧪 CREATE MULTIPLE TEST USERS
+  const createMultipleTestUsers = async () => {
+    try {
+      console.log("🧪 Creating multiple test users...");
+
+      const testUsers = [
+        {
+          id: generateUUID(),
+          username: "testuser1",
+          full_name: "Test User One",
+          avatar_url: null,
+          friend_count: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          id: generateUUID(),
+          username: "johnsmith",
+          full_name: "John Smith",
+          avatar_url: null,
+          friend_count: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          id: generateUUID(),
+          username: "sarahjones",
+          full_name: "Sarah Jones",
+          avatar_url: null,
+          friend_count: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ];
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .insert(testUsers)
+        .select();
+
+      if (error) {
+        console.error("❌ Error creating test users:", error);
+        Alert.alert("Error", `Failed to create test users: ${error.message}`);
+        return;
+      }
+
+      console.log("✅ Test users created:", data);
+      Alert.alert(
+        "Success",
+        `${data.length} test users created!\n\nTry searching for:\n• testuser1\n• johnsmith\n• sarahjones\n• John Smith\n• Sarah Jones`
+      );
+    } catch (error) {
+      console.error("Error creating test users:", error);
+      Alert.alert("Error", "Failed to create test users");
+    }
+  };
+
   const performSearch = async () => {
     if (!currentUserId || searchQuery.trim().length <= 2) return;
 
@@ -404,6 +568,9 @@ export default function SearchUsersScreen({
           <Text style={styles.emptySubtitle}>
             Enter at least 3 characters to search for users by username or name
           </Text>
+          <TouchableOpacity style={styles.debugButton} onPress={debugDatabase}>
+            <Text style={styles.debugButtonText}>🔍 Debug Database</Text>
+          </TouchableOpacity>
         </View>
       );
     }
@@ -415,6 +582,9 @@ export default function SearchUsersScreen({
         <Text style={styles.emptySubtitle}>
           Try searching with different keywords
         </Text>
+        <TouchableOpacity style={styles.debugButton} onPress={debugDatabase}>
+          <Text style={styles.debugButtonText}>🔍 Debug Database</Text>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -430,7 +600,12 @@ export default function SearchUsersScreen({
           <Ionicons name="arrow-back" size={24} color="#007AFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Search Users</Text>
-        <View style={styles.placeholder} />
+        <TouchableOpacity
+          style={styles.headerDebugButton}
+          onPress={debugDatabase}
+        >
+          <Text style={styles.headerDebugText}>🔍</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Search Input */}
@@ -505,8 +680,14 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#1a1a1a",
   },
-  placeholder: {
-    width: 40,
+  headerDebugButton: {
+    padding: 8,
+    backgroundColor: "#FF3B30",
+    borderRadius: 8,
+  },
+  headerDebugText: {
+    fontSize: 16,
+    color: "white",
   },
   searchContainer: {
     backgroundColor: "white",
@@ -560,6 +741,18 @@ const styles = StyleSheet.create({
     color: "#8E8E93",
     textAlign: "center",
     lineHeight: 22,
+    marginBottom: 20,
+  },
+  debugButton: {
+    backgroundColor: "#FF3B30",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  debugButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
   },
   listContainer: {
     padding: 20,

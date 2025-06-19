@@ -13,6 +13,7 @@ import {
   Modal,
   ActivityIndicator,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { supabase } from "../../services/supabase";
 import { UserService } from "../../services/userService";
 import { Profile } from "../../types";
@@ -25,13 +26,20 @@ interface ProfileStats {
   joinedDate: string;
 }
 
-export default function ProfileScreen() {
+interface ProfileScreenProps {
+  navigation: any;
+}
+
+export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [stats, setStats] = useState<ProfileStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editingBio, setEditingBio] = useState(false);
+
+  // NEW: Add pending requests count state
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
   // Form states
   const [fullName, setFullName] = useState("");
@@ -41,7 +49,36 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     loadProfileData();
+    loadPendingRequestsCount();
   }, []);
+
+  // NEW: Add focus effect to refresh pending requests when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      loadPendingRequestsCount();
+    }, [])
+  );
+
+  // NEW: Function to load pending friend requests count
+  const loadPendingRequestsCount = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { count, error } = await supabase
+        .from("friend_requests")
+        .select("*", { count: "exact", head: true })
+        .eq("receiver_id", user.id)
+        .eq("status", "pending");
+
+      if (error) throw error;
+      setPendingRequestsCount(count || 0);
+    } catch (error) {
+      console.error("Error loading pending requests count:", error);
+    }
+  };
 
   const loadProfileData = async () => {
     try {
@@ -73,6 +110,7 @@ export default function ProfileScreen() {
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadProfileData();
+    loadPendingRequestsCount(); // NEW: Also refresh pending requests
   }, []);
 
   const saveProfile = async () => {
@@ -322,7 +360,10 @@ export default function ProfileScreen() {
       <View style={styles.actionsSection}>
         <Text style={styles.sectionTitle}>Quick Actions</Text>
 
-        <TouchableOpacity style={styles.actionItem}>
+        <TouchableOpacity
+          style={styles.actionItem}
+          onPress={() => navigation.navigate("Home", { screen: "SearchUsers" })}
+        >
           <View style={styles.actionIcon}>
             <Ionicons name="person-add" size={20} color="#007AFF" />
           </View>
@@ -335,12 +376,23 @@ export default function ProfileScreen() {
           <Ionicons name="chevron-forward" size={20} color="#C7C7CC" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionItem}>
+        {/* UPDATED: Friend Requests with badge and navigation */}
+        <TouchableOpacity
+          style={styles.actionItem}
+          onPress={() => navigation.navigate("FriendRequests")}
+        >
           <View style={styles.actionIcon}>
             <Ionicons name="notifications" size={20} color="#007AFF" />
           </View>
           <View style={styles.actionContent}>
-            <Text style={styles.actionTitle}>Friend Requests</Text>
+            <View style={styles.actionTitleContainer}>
+              <Text style={styles.actionTitle}>Friend Requests</Text>
+              {pendingRequestsCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{pendingRequestsCount}</Text>
+                </View>
+              )}
+            </View>
             <Text style={styles.actionSubtitle}>
               Manage pending friend requests
             </Text>
@@ -617,15 +669,36 @@ const styles = StyleSheet.create({
   actionContent: {
     flex: 1,
   },
+  // NEW: Action title container for badge positioning
+  actionTitleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 2,
+  },
   actionTitle: {
     fontSize: 16,
     fontWeight: "500",
     color: "#1a1a1a",
-    marginBottom: 2,
+    marginRight: 8, // NEW: Add space for badge
   },
   actionSubtitle: {
     fontSize: 14,
     color: "#8E8E93",
+  },
+  // NEW: Badge styles
+  badge: {
+    backgroundColor: "#FF3B30",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 6,
+  },
+  badgeText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "600",
   },
   modalContainer: {
     flex: 1,
