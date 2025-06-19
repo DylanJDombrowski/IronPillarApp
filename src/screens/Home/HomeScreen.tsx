@@ -10,6 +10,7 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  Alert,
 } from "react-native";
 import { supabase } from "../../services/supabase";
 
@@ -72,6 +73,9 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
   const [refreshing, setRefreshing] = useState(false);
   const [expandedWorkout, setExpandedWorkout] = useState<string | null>(null);
   const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
+  const [showDeleteOptions, setShowDeleteOptions] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     loadData();
@@ -237,10 +241,77 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
     );
   };
 
+  const deleteWorkout = async (workoutId: string) => {
+    Alert.alert(
+      "Delete Workout",
+      "Are you sure you want to delete this workout? This action cannot be undone.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+          onPress: () => setShowDeleteOptions(null),
+        },
+        {
+          text: "Yes, Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const {
+                data: { user },
+              } = await supabase.auth.getUser();
+
+              if (!user) {
+                Alert.alert(
+                  "Error",
+                  "You must be logged in to delete workouts"
+                );
+                return;
+              }
+
+              // Delete workout exercises first (foreign key constraint)
+              const { error: exercisesError } = await supabase
+                .from("workout_exercises")
+                .delete()
+                .eq("workout_id", workoutId);
+
+              if (exercisesError) throw exercisesError;
+
+              // Delete the workout
+              const { error: workoutError } = await supabase
+                .from("workouts")
+                .delete()
+                .eq("id", workoutId)
+                .eq("user_id", user.id);
+
+              if (workoutError) throw workoutError;
+
+              // Update local state
+              setMyWorkouts((prev) =>
+                prev.filter((workout) => workout.id !== workoutId)
+              );
+              setShowDeleteOptions(null);
+              setExpandedWorkout(null);
+              setExpandedExercise(null);
+
+              Alert.alert("Success", "Workout deleted successfully");
+            } catch (error) {
+              console.error("Error deleting workout:", error);
+              Alert.alert(
+                "Error",
+                "Failed to delete workout. Please try again."
+              );
+              setShowDeleteOptions(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const toggleWorkoutExpansion = (workoutId: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpandedWorkout(expandedWorkout === workoutId ? null : workoutId);
-    setExpandedExercise(null); // Reset exercise expansion when toggling workout
+    setExpandedExercise(null);
   };
 
   const toggleExerciseExpansion = (exerciseKey: string) => {
@@ -263,7 +334,7 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
 
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
-    const month = date.getMonth() + 1; // getMonth() returns 0-11, so add 1
+    const month = date.getMonth() + 1;
     const day = date.getDate();
     return `${month}/${day}`;
   };
@@ -333,117 +404,146 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
 
   const renderMyWorkoutCard = ({ item }: { item: MyWorkout }) => {
     const isExpanded = expandedWorkout === item.id;
+    const showDeleteOption = showDeleteOptions === item.id;
     const workoutTypeColor = getWorkoutTypeColor(item.type);
 
     return (
-      <View
-        style={[styles.workoutCard, isExpanded && styles.workoutCardExpanded]}
-      >
-        <TouchableOpacity
-          style={styles.myWorkoutHeader}
-          onPress={() => toggleWorkoutExpansion(item.id)}
-          activeOpacity={0.7}
+      <View style={styles.workoutCardContainer}>
+        <View
+          style={[styles.workoutCard, isExpanded && styles.workoutCardExpanded]}
         >
-          <View style={styles.workoutHeaderLeft}>
-            <Text style={styles.myWorkoutName}>{item.name}</Text>
-            <Text
-              style={[
-                styles.myWorkoutType,
-                {
-                  color: workoutTypeColor,
-                  backgroundColor: `${workoutTypeColor}15`,
-                },
-              ]}
+          <View style={styles.cardHeader}>
+            <TouchableOpacity
+              style={styles.myWorkoutHeader}
+              onPress={() => toggleWorkoutExpansion(item.id)}
+              activeOpacity={0.7}
             >
-              {item.type.replace("_", " ").toUpperCase()}
-            </Text>
+              <View style={styles.workoutHeaderLeft}>
+                <Text style={styles.myWorkoutName}>{item.name}</Text>
+                <Text
+                  style={[
+                    styles.myWorkoutType,
+                    {
+                      color: workoutTypeColor,
+                      backgroundColor: `${workoutTypeColor}15`,
+                    },
+                  ]}
+                >
+                  {item.type.replace("_", " ").toUpperCase()}
+                </Text>
+              </View>
+              <Ionicons
+                name={isExpanded ? "chevron-up" : "chevron-down"}
+                size={20}
+                color="#666"
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.deleteToggleButton}
+              onPress={() =>
+                setShowDeleteOptions(showDeleteOption ? null : item.id)
+              }
+              activeOpacity={0.7}
+            >
+              <Ionicons name="ellipsis-horizontal" size={20} color="#666" />
+            </TouchableOpacity>
           </View>
-          <Ionicons
-            name={isExpanded ? "chevron-up" : "chevron-down"}
-            size={20}
-            color="#666"
-          />
-        </TouchableOpacity>
 
-        <View style={styles.workoutStats}>
-          <View style={styles.statItem}>
-            <Ionicons name="barbell-outline" size={16} color="#007AFF" />
-            <Text style={styles.statText}>
-              {item.exercises_count} exercises
-            </Text>
+          <View style={styles.workoutStats}>
+            <View style={styles.statItem}>
+              <Ionicons name="barbell-outline" size={16} color="#007AFF" />
+              <Text style={styles.statText}>
+                {item.exercises_count} exercises
+              </Text>
+            </View>
+
+            <View style={styles.statItem}>
+              <Ionicons name="calendar-outline" size={16} color="#007AFF" />
+              <Text style={styles.statText}>
+                {formatTimeAgo(item.completed_at)}
+              </Text>
+            </View>
           </View>
 
-          <View style={styles.statItem}>
-            <Ionicons name="calendar-outline" size={16} color="#007AFF" />
-            <Text style={styles.statText}>
-              {formatTimeAgo(item.completed_at)}
-            </Text>
-          </View>
-        </View>
+          {/* Delete Option */}
+          {showDeleteOption && (
+            <TouchableOpacity
+              style={styles.deleteOption}
+              onPress={() => deleteWorkout(item.id)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="trash" size={16} color="#FF3B30" />
+              <Text style={styles.deleteOptionText}>Delete Workout</Text>
+            </TouchableOpacity>
+          )}
 
-        {/* Exercise List - Show when expanded */}
-        {isExpanded && (
-          <View style={styles.exercisesList}>
-            <Text style={styles.exercisesTitle}>Exercises:</Text>
-            {item.exercises.map((exercise, index) => {
-              const exerciseKey = `${item.id}-${exercise.id}`;
-              const isExerciseExpanded = expandedExercise === exerciseKey;
+          {/* Exercise List - Show when expanded */}
+          {isExpanded && (
+            <View style={styles.exercisesList}>
+              <Text style={styles.exercisesTitle}>Exercises:</Text>
+              {item.exercises.map((exercise, index) => {
+                const exerciseKey = `${item.id}-${exercise.id}`;
+                const isExerciseExpanded = expandedExercise === exerciseKey;
 
-              return (
-                <View key={exerciseKey} style={styles.exerciseItem}>
-                  <TouchableOpacity
-                    style={styles.exerciseItemHeader}
-                    onPress={() => toggleExerciseExpansion(exerciseKey)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.exerciseItemLeft}>
-                      <View
-                        style={[
-                          styles.exerciseNumber,
-                          { backgroundColor: workoutTypeColor },
-                        ]}
-                      >
-                        <Text style={styles.exerciseNumberText}>
-                          {index + 1}
-                        </Text>
-                      </View>
-                      <View style={styles.exerciseItemInfo}>
-                        <Text style={styles.exerciseItemName}>
-                          {exercise.name}
-                        </Text>
-                        <Text style={styles.exerciseItemDetails}>
-                          {exercise.sets} sets × {exercise.reps || 10} reps
-                        </Text>
-                      </View>
-                    </View>
-                    <Ionicons
-                      name={isExerciseExpanded ? "chevron-up" : "chevron-down"}
-                      size={16}
-                      color="#666"
-                    />
-                  </TouchableOpacity>
-
-                  {/* Sets Details - Show when exercise is expanded */}
-                  {isExerciseExpanded && exercise.workout_exercise_sets && (
-                    <View style={styles.setsContainer}>
-                      <Text style={styles.setsTitle}>Sets:</Text>
-                      {exercise.workout_exercise_sets.map((set, setIndex) => (
-                        <View key={setIndex} style={styles.setRow}>
-                          <Text style={styles.setLabel}>
-                            Set {set.set_number}
-                          </Text>
-                          <Text style={styles.setDetails}>
-                            {set.reps} reps @ {set.weight}lbs
+                return (
+                  <View key={exerciseKey} style={styles.exerciseItem}>
+                    <TouchableOpacity
+                      style={styles.exerciseItemHeader}
+                      onPress={() => toggleExerciseExpansion(exerciseKey)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.exerciseItemLeft}>
+                        <View
+                          style={[
+                            styles.exerciseNumber,
+                            { backgroundColor: workoutTypeColor },
+                          ]}
+                        >
+                          <Text style={styles.exerciseNumberText}>
+                            {index + 1}
                           </Text>
                         </View>
-                      ))}
-                    </View>
-                  )}
-                </View>
-              );
-            })}
-          </View>
-        )}
+                        <View style={styles.exerciseItemInfo}>
+                          <Text style={styles.exerciseItemName}>
+                            {exercise.name}
+                          </Text>
+                          <Text style={styles.exerciseItemDetails}>
+                            {exercise.sets} sets × {exercise.reps || 10} reps
+                          </Text>
+                        </View>
+                      </View>
+                      <Ionicons
+                        name={
+                          isExerciseExpanded ? "chevron-up" : "chevron-down"
+                        }
+                        size={16}
+                        color="#666"
+                      />
+                    </TouchableOpacity>
+
+                    {/* Sets Details - Show when exercise is expanded */}
+                    {isExerciseExpanded && exercise.workout_exercise_sets && (
+                      <View style={styles.setsContainer}>
+                        <Text style={styles.setsTitle}>Sets:</Text>
+                        {exercise.workout_exercise_sets.map((set, setIndex) => (
+                          <View key={setIndex} style={styles.setRow}>
+                            <Text style={styles.setLabel}>
+                              Set {set.set_number}
+                            </Text>
+                            <Text style={styles.setDetails}>
+                              {set.reps} reps @ {set.weight}lbs
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
       </View>
     );
   };
@@ -621,11 +721,13 @@ const styles = StyleSheet.create({
   listContainer: {
     padding: 20,
   },
+  workoutCardContainer: {
+    marginBottom: 16,
+  },
   workoutCard: {
     backgroundColor: "white",
     borderRadius: 16,
     padding: 20,
-    marginBottom: 16,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -637,6 +739,11 @@ const styles = StyleSheet.create({
   },
   workoutCardExpanded: {
     paddingBottom: 24,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
   },
   userHeader: {
     flexDirection: "row",
@@ -689,10 +796,10 @@ const styles = StyleSheet.create({
   },
   // My Workouts specific styles
   myWorkoutHeader: {
+    flex: 1,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
   },
   workoutHeaderLeft: {
     flex: 1,
@@ -714,10 +821,30 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8,
   },
+  deleteToggleButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  deleteOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF5F5",
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "#FFE0E0",
+  },
+  deleteOptionText: {
+    color: "#FF3B30",
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
   workoutStats: {
     flexDirection: "row",
     gap: 20,
-    marginBottom: 12,
+    marginTop: 12,
   },
   statItem: {
     flexDirection: "row",
