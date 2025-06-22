@@ -435,17 +435,6 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
             <View style={styles.cardHeader}>
               <View style={styles.workoutHeaderLeft}>
                 <Text style={styles.myWorkoutName}>{item.name}</Text>
-                <Text
-                  style={[
-                    styles.myWorkoutType,
-                    {
-                      color: workoutTypeColor,
-                      backgroundColor: `${workoutTypeColor}15`,
-                    },
-                  ]}
-                >
-                  {item.type.replace("_", " ").toUpperCase()}
-                </Text>
               </View>
             </View>
 
@@ -463,6 +452,17 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
                   {formatTimeAgo(item.completed_at)}
                 </Text>
               </View>
+
+              <View style={styles.statItem}>
+                <Ionicons
+                  name="fitness-outline"
+                  size={16}
+                  color={workoutTypeColor}
+                />
+                <Text style={[styles.statText, { color: workoutTypeColor }]}>
+                  {item.type.replace("_", " ").toUpperCase()}
+                </Text>
+              </View>
             </View>
 
             {/* Delete Option */}
@@ -476,6 +476,19 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
                 <Text style={styles.deleteOptionText}>Delete Workout</Text>
               </TouchableOpacity>
             )}
+
+            {/* WORKOUT TYPE - MOVED TO BOTTOM RIGHT */}
+            <Text
+              style={[
+                styles.myWorkoutTypeBottomRight,
+                {
+                  color: workoutTypeColor,
+                  backgroundColor: `${workoutTypeColor}15`,
+                },
+              ]}
+            >
+              {item.type.replace("_", " ").toUpperCase()}
+            </Text>
           </TouchableOpacity>
 
           {/* Exercise List - Show when expanded */}
@@ -546,9 +559,9 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
             </View>
           )}
 
-          {/* DELETE BUTTON - POSITIONED OUTSIDE CLICKABLE AREA */}
+          {/* DELETE BUTTON - MOVED TO TOP RIGHT */}
           <TouchableOpacity
-            style={styles.deleteToggleButtonBottomRight}
+            style={styles.deleteToggleButtonTopRight}
             onPress={() =>
               setShowDeleteOptions(showDeleteOption ? null : item.id)
             }
@@ -813,6 +826,7 @@ const styles = StyleSheet.create({
   mainWorkoutClickableArea: {
     flex: 1,
     paddingRight: 50, // Leave space for delete button
+    paddingBottom: 30, // Leave space for workout type in bottom right
   },
   myWorkoutHeader: {
     flex: 1,
@@ -820,6 +834,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -839,10 +854,22 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8,
   },
-  // NEW STYLE: Delete button moved to bottom right
-  deleteToggleButtonBottomRight: {
+  // NEW STYLE: Workout type moved to bottom right
+  myWorkoutTypeBottomRight: {
     position: "absolute",
     bottom: 12,
+    right: 12,
+    fontSize: 12,
+    fontWeight: "600",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    zIndex: 5,
+  },
+  // NEW STYLE: Delete button moved to top right
+  deleteToggleButtonTopRight: {
+    position: "absolute",
+    top: 12,
     right: 12,
     padding: 8,
     borderRadius: 16,
