@@ -160,7 +160,8 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
             id,
             sets,
             reps,
-            exercise:exercises (
+            exercise_id,
+            exercises!workout_exercises_exercise_id_fkey (
               id,
               name,
               muscle_groups
@@ -178,21 +179,21 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
 
       // Transform the data to match the MyWorkout interface
       const transformedWorkouts: MyWorkout[] =
-        workouts?.map((workout) => {
+        workouts?.map((workout: any) => {
           const exercises: WorkoutExerciseDisplay[] =
             workout.workout_exercises?.map((we: any) => ({
-              id: we.exercise.id,
-              name: we.exercise.name,
+              id: we.exercises?.id || we.exercise_id,
+              name: we.exercises?.name || "Unknown Exercise",
               sets: we.sets,
               reps: we.reps,
-              muscle_group: we.exercise.muscle_groups?.[0] || "Unknown",
-              // For now, we'll create mock sets data since the saved workouts don't have actual weight/reps yet
+              muscle_group: we.exercises?.muscle_groups?.[0] || "Unknown",
+              // Use the actual reps from workout_exercises table (not mock data)
               workout_exercise_sets: Array.from(
                 { length: we.sets },
                 (_, index) => ({
                   set_number: index + 1,
-                  reps: we.reps || 10,
-                  weight: 135, // Default weight for display
+                  reps: we.reps || 10, // This will now show the ACTUAL saved reps
+                  weight: 0, // Weight data isn't saved in current structure, so default to 0
                 })
               ),
             })) || [];
@@ -476,19 +477,6 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
                 <Text style={styles.deleteOptionText}>Delete Workout</Text>
               </TouchableOpacity>
             )}
-
-            {/* WORKOUT TYPE - MOVED TO BOTTOM RIGHT */}
-            <Text
-              style={[
-                styles.myWorkoutTypeBottomRight,
-                {
-                  color: workoutTypeColor,
-                  backgroundColor: `${workoutTypeColor}15`,
-                },
-              ]}
-            >
-              {item.type.replace("_", " ").toUpperCase()}
-            </Text>
           </TouchableOpacity>
 
           {/* Exercise List - Show when expanded */}
@@ -826,7 +814,6 @@ const styles = StyleSheet.create({
   mainWorkoutClickableArea: {
     flex: 1,
     paddingRight: 50, // Leave space for delete button
-    paddingBottom: 30, // Leave space for workout type in bottom right
   },
   myWorkoutHeader: {
     flex: 1,
@@ -853,18 +840,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
-  },
-  // NEW STYLE: Workout type moved to bottom right
-  myWorkoutTypeBottomRight: {
-    position: "absolute",
-    bottom: 12,
-    right: 12,
-    fontSize: 12,
-    fontWeight: "600",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    zIndex: 5,
   },
   // NEW STYLE: Delete button moved to top right
   deleteToggleButtonTopRight: {
@@ -903,7 +878,7 @@ const styles = StyleSheet.create({
   workoutStats: {
     flexDirection: "row",
     gap: 20,
-    marginTop: 12,
+    marginTop: 8,
   },
   statItem: {
     flexDirection: "row",
