@@ -72,7 +72,8 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedWorkout, setExpandedWorkout] = useState<string | null>(null);
-  const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
+  // CHANGED: Now using an array to track multiple expanded exercises
+  const [expandedExercises, setExpandedExercises] = useState<string[]>([]);
   const [showDeleteOptions, setShowDeleteOptions] = useState<string | null>(
     null
   );
@@ -291,7 +292,8 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
               );
               setShowDeleteOptions(null);
               setExpandedWorkout(null);
-              setExpandedExercise(null);
+              // CHANGED: Clear all expanded exercises when workout is deleted
+              setExpandedExercises([]);
 
               Alert.alert("Success", "Workout deleted successfully");
             } catch (error) {
@@ -311,12 +313,24 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
   const toggleWorkoutExpansion = (workoutId: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpandedWorkout(expandedWorkout === workoutId ? null : workoutId);
-    setExpandedExercise(null);
+    // CHANGED: Clear all expanded exercises when workout collapses
+    if (expandedWorkout === workoutId) {
+      setExpandedExercises([]);
+    }
   };
 
+  // CHANGED: New function to handle multiple exercise expansion
   const toggleExerciseExpansion = (exerciseKey: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpandedExercise(expandedExercise === exerciseKey ? null : exerciseKey);
+    setExpandedExercises((prev) => {
+      if (prev.includes(exerciseKey)) {
+        // Remove from expanded list if already expanded
+        return prev.filter((key) => key !== exerciseKey);
+      } else {
+        // Add to expanded list
+        return [...prev, exerciseKey];
+      }
+    });
   };
 
   const getWorkoutTypeColor = (type: string) => {
@@ -438,16 +452,6 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
                 color="#666"
               />
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.deleteToggleButton}
-              onPress={() =>
-                setShowDeleteOptions(showDeleteOption ? null : item.id)
-              }
-              activeOpacity={0.7}
-            >
-              <Ionicons name="ellipsis-horizontal" size={20} color="#666" />
-            </TouchableOpacity>
           </View>
 
           <View style={styles.workoutStats}>
@@ -484,7 +488,9 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
               <Text style={styles.exercisesTitle}>Exercises:</Text>
               {item.exercises.map((exercise, index) => {
                 const exerciseKey = `${item.id}-${exercise.id}`;
-                const isExerciseExpanded = expandedExercise === exerciseKey;
+                // CHANGED: Check if this exercise is in the expanded array
+                const isExerciseExpanded =
+                  expandedExercises.includes(exerciseKey);
 
                 return (
                   <View key={exerciseKey} style={styles.exerciseItem}>
@@ -543,6 +549,17 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
               })}
             </View>
           )}
+
+          {/* DELETE BUTTON - MOVED TO BOTTOM RIGHT */}
+          <TouchableOpacity
+            style={styles.deleteToggleButtonBottomRight}
+            onPress={() =>
+              setShowDeleteOptions(showDeleteOption ? null : item.id)
+            }
+            activeOpacity={0.7}
+          >
+            <Ionicons name="ellipsis-horizontal" size={20} color="#666" />
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -736,6 +753,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    position: "relative", // Added for absolute positioning
   },
   workoutCardExpanded: {
     paddingBottom: 24,
@@ -821,9 +839,23 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8,
   },
-  deleteToggleButton: {
+  // NEW STYLE: Delete button moved to bottom right
+  deleteToggleButtonBottomRight: {
+    position: "absolute",
+    bottom: 12,
+    right: 12,
     padding: 8,
-    marginLeft: 8,
+    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+    zIndex: 10,
   },
   deleteOption: {
     flexDirection: "row",
