@@ -426,12 +426,13 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
         <View
           style={[styles.workoutCard, isExpanded && styles.workoutCardExpanded]}
         >
-          <View style={styles.cardHeader}>
-            <TouchableOpacity
-              style={styles.myWorkoutHeader}
-              onPress={() => toggleWorkoutExpansion(item.id)}
-              activeOpacity={0.7}
-            >
+          {/* MAIN CLICKABLE AREA - Entire bubble except delete button */}
+          <TouchableOpacity
+            style={styles.mainWorkoutClickableArea}
+            onPress={() => toggleWorkoutExpansion(item.id)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.cardHeader}>
               <View style={styles.workoutHeaderLeft}>
                 <Text style={styles.myWorkoutName}>{item.name}</Text>
                 <Text
@@ -446,41 +447,36 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
                   {item.type.replace("_", " ").toUpperCase()}
                 </Text>
               </View>
-              <Ionicons
-                name={isExpanded ? "chevron-up" : "chevron-down"}
-                size={20}
-                color="#666"
-              />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.workoutStats}>
-            <View style={styles.statItem}>
-              <Ionicons name="barbell-outline" size={16} color="#007AFF" />
-              <Text style={styles.statText}>
-                {item.exercises_count} exercises
-              </Text>
             </View>
 
-            <View style={styles.statItem}>
-              <Ionicons name="calendar-outline" size={16} color="#007AFF" />
-              <Text style={styles.statText}>
-                {formatTimeAgo(item.completed_at)}
-              </Text>
-            </View>
-          </View>
+            <View style={styles.workoutStats}>
+              <View style={styles.statItem}>
+                <Ionicons name="barbell-outline" size={16} color="#007AFF" />
+                <Text style={styles.statText}>
+                  {item.exercises_count} exercises
+                </Text>
+              </View>
 
-          {/* Delete Option */}
-          {showDeleteOption && (
-            <TouchableOpacity
-              style={styles.deleteOption}
-              onPress={() => deleteWorkout(item.id)}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="trash" size={16} color="#FF3B30" />
-              <Text style={styles.deleteOptionText}>Delete Workout</Text>
-            </TouchableOpacity>
-          )}
+              <View style={styles.statItem}>
+                <Ionicons name="calendar-outline" size={16} color="#007AFF" />
+                <Text style={styles.statText}>
+                  {formatTimeAgo(item.completed_at)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Delete Option */}
+            {showDeleteOption && (
+              <TouchableOpacity
+                style={styles.deleteOption}
+                onPress={() => deleteWorkout(item.id)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="trash" size={16} color="#FF3B30" />
+                <Text style={styles.deleteOptionText}>Delete Workout</Text>
+              </TouchableOpacity>
+            )}
+          </TouchableOpacity>
 
           {/* Exercise List - Show when expanded */}
           {isExpanded && (
@@ -550,7 +546,7 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
             </View>
           )}
 
-          {/* DELETE BUTTON - MOVED TO BOTTOM RIGHT */}
+          {/* DELETE BUTTON - POSITIONED OUTSIDE CLICKABLE AREA */}
           <TouchableOpacity
             style={styles.deleteToggleButtonBottomRight}
             onPress={() =>
@@ -758,10 +754,11 @@ const styles = StyleSheet.create({
   workoutCardExpanded: {
     paddingBottom: 24,
   },
-  cardHeader: {
+  workoutHeaderLeft: {
+    flex: 1,
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
   },
   userHeader: {
     flexDirection: "row",
@@ -813,17 +810,20 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   // My Workouts specific styles
+  mainWorkoutClickableArea: {
+    flex: 1,
+    paddingRight: 50, // Leave space for delete button
+  },
   myWorkoutHeader: {
     flex: 1,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  workoutHeaderLeft: {
-    flex: 1,
+  cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   myWorkoutName: {
     fontSize: 18,
