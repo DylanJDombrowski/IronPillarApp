@@ -160,6 +160,7 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
             id,
             sets,
             reps,
+            notes,
             exercise_id,
             exercises!workout_exercises_exercise_id_fkey (
               id,
@@ -187,15 +188,26 @@ export default function HomeScreen({ navigation, route }: HomeScreenProps) {
               sets: we.sets,
               reps: we.reps,
               muscle_group: we.exercises?.muscle_groups?.[0] || "Unknown",
-              // Use the actual reps from workout_exercises table (not mock data)
-              workout_exercise_sets: Array.from(
-                { length: we.sets },
-                (_, index) => ({
+              // Parse weight data from notes field (stored as JSON)
+              workout_exercise_sets: (() => {
+                let avgWeight = 0;
+                try {
+                  // Try to parse weight data from notes field
+                  if (we.notes) {
+                    const parsedData = JSON.parse(we.notes);
+                    avgWeight = parsedData.avgWeight || 0;
+                  }
+                } catch (e) {
+                  // If notes isn't JSON, ignore and use default weight
+                  avgWeight = 0;
+                }
+
+                return Array.from({ length: we.sets }, (_, index) => ({
                   set_number: index + 1,
-                  reps: we.reps || 10, // This will now show the ACTUAL saved reps
-                  weight: 0, // Weight data isn't saved in current structure, so default to 0
-                })
-              ),
+                  reps: we.reps || 10, // Shows the ACTUAL saved reps
+                  weight: avgWeight, // Shows the ACTUAL saved weight from notes
+                }));
+              })(),
             })) || [];
 
           return {
